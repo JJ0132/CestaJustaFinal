@@ -10,6 +10,8 @@ const foodDatabase = [
 ];
 
 const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+const USERS_STORAGE_KEY = 'cestajusta_users';
+const CURRENT_USER_STORAGE_KEY = 'cestajusta_current_user';
 
 // --- 2. LÓGICA DE NEGOCIO (Adaptada de mealPlanner.ts) ---
 function generateWeeklyMealPlan(profile) {
@@ -74,7 +76,176 @@ document.addEventListener('DOMContentLoaded', () => {
   const resultsSection = document.getElementById('results-section');
   const planContent = document.getElementById('plan-content');
   const shoppingContent = document.getElementById('shopping-content');
-  const tabBtns = document.querySelectorAll('.tab-btn');
+  const tabBtns = document.querySelectorAll('#results-section .tab-btn');
+  const authSection = document.getElementById('auth-section');
+  const appShell = document.getElementById('app-shell');
+  const authMessage = document.getElementById('auth-message');
+  const loginForm = document.getElementById('login-form');
+  const registerForm = document.getElementById('register-form');
+  const goRegisterBtn = document.getElementById('go-register');
+  const goLoginBtn = document.getElementById('go-login');
+  const regPhoneInput = document.getElementById('reg-phone');
+  const userMenu = document.getElementById('user-menu');
+  const userMenuToggle = document.getElementById('user-menu-toggle');
+  const userMenuDropdown = document.getElementById('user-menu-dropdown');
+  const accountBtn = document.getElementById('btn-account');
+  const logoutBtn = document.getElementById('btn-logout');
+
+  function getStoredUsers() {
+    try {
+      const usersRaw = localStorage.getItem(USERS_STORAGE_KEY);
+      return usersRaw ? JSON.parse(usersRaw) : [];
+    } catch (error) {
+      return [];
+    }
+  }
+
+  function saveUsers(users) {
+    localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
+  }
+
+  function getCurrentUser() {
+    return localStorage.getItem(CURRENT_USER_STORAGE_KEY);
+  }
+
+  function setCurrentUser(username) {
+    localStorage.setItem(CURRENT_USER_STORAGE_KEY, username);
+  }
+
+  function clearCurrentUser() {
+    localStorage.removeItem(CURRENT_USER_STORAGE_KEY);
+  }
+
+  function showAuthMessage(message, isError = false) {
+    authMessage.textContent = message;
+    authMessage.classList.toggle('error', isError);
+    authMessage.classList.toggle('success', !isError);
+  }
+
+  function switchAuthView(target) {
+    const showLogin = target === 'login';
+    loginForm.classList.toggle('hidden', !showLogin);
+    registerForm.classList.toggle('hidden', showLogin);
+    showAuthMessage('', false);
+  }
+
+  function closeUserMenu() {
+    userMenuDropdown.classList.add('hidden');
+  }
+
+  function updateUserMenu(username) {
+    userMenuToggle.textContent = username ? username : 'Mi perfil';
+  }
+
+  function unlockApp() {
+    authSection.classList.add('hidden');
+    appShell.classList.remove('hidden');
+    userMenu.classList.remove('hidden');
+  }
+
+  function lockApp() {
+    appShell.classList.add('hidden');
+    resultsSection.classList.add('hidden');
+    prefSection.classList.remove('hidden');
+    authSection.classList.remove('hidden');
+    loginForm.reset();
+    registerForm.reset();
+    switchAuthView('login');
+    closeUserMenu();
+    userMenu.classList.add('hidden');
+  }
+
+  goRegisterBtn.addEventListener('click', () => switchAuthView('register'));
+  goLoginBtn.addEventListener('click', () => switchAuthView('login'));
+  userMenuToggle.addEventListener('click', () => {
+    userMenuDropdown.classList.toggle('hidden');
+  });
+  accountBtn.addEventListener('click', () => {
+    closeUserMenu();
+  });
+  logoutBtn.addEventListener('click', () => {
+    clearCurrentUser();
+    lockApp();
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!userMenu.contains(e.target)) {
+      closeUserMenu();
+    }
+  });
+
+  // Solo permite digitos y un maximo de 9 en tiempo real.
+  regPhoneInput.addEventListener('input', (e) => {
+    const onlyDigits = e.target.value.replace(/\D/g, '');
+    e.target.value = onlyDigits.slice(0, 9);
+  });
+
+  registerForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+
+    const phoneValue = regPhoneInput.value.trim();
+    if (phoneValue.length !== 9) {
+      showAuthMessage('El telefono debe tener exactamente 9 numeros.', true);
+      return;
+    }
+
+    const newUser = {
+      name: document.getElementById('reg-name').value.trim(),
+      lastName1: document.getElementById('reg-lastname1').value.trim(),
+      lastName2: document.getElementById('reg-lastname2').value.trim(),
+      username: document.getElementById('reg-username').value.trim(),
+      email: document.getElementById('reg-email').value.trim().toLowerCase(),
+      phone: phoneValue,
+      password: document.getElementById('reg-password').value,
+    };
+
+    const users = getStoredUsers();
+    const usernameTaken = users.some(user => user.username.toLowerCase() === newUser.username.toLowerCase());
+    const emailTaken = users.some(user => user.email === newUser.email);
+
+    if (usernameTaken) {
+      showAuthMessage('Ese nombre de usuario ya existe.', true);
+      return;
+    }
+
+    if (emailTaken) {
+      showAuthMessage('Ese correo ya esta registrado.', true);
+      return;
+    }
+
+    users.push(newUser);
+    saveUsers(users);
+    registerForm.reset();
+    switchAuthView('login');
+    showAuthMessage('Cuenta creada. Ahora inicia sesion con tu usuario.', false);
+  });
+
+  loginForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+
+    const username = document.getElementById('login-username').value.trim();
+    const password = document.getElementById('login-password').value;
+    const users = getStoredUsers();
+    const match = users.find(user => user.username.toLowerCase() === username.toLowerCase() && user.password === password);
+
+    if (!match) {
+      showAuthMessage('Usuario o contrasena incorrectos.', true);
+      return;
+    }
+
+    setCurrentUser(match.username);
+    updateUserMenu(match.username);
+    showAuthMessage('Inicio de sesion correcto.', false);
+    unlockApp();
+  });
+
+  switchAuthView('login');
+
+  const currentUser = getCurrentUser();
+  if (currentUser) {
+    updateUserMenu(currentUser);
+    unlockApp();
+  }
 
   // Actualizar UI del rango de presupuesto
   budgetInput.addEventListener('input', (e) => budgetValue.textContent = e.target.value);
