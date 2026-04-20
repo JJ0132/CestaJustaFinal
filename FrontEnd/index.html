@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CestaJusta</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header>
+    <div class="container header-content">
+      <img src="./Logo/CestaJusta.jpg" alt="CestaJusta" class="logo"/>
+      <div>
+        <h1>Dietas Saludables Personalizadas</h1>
+        <p>Planifica tus comidas semanales ajustadas a tu presupuesto y necesidades</p>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <section id="preferences-section" class="card">
+      <h2>Configura tu Perfil Nutricional</h2>
+      <form id="preferences-form">
+        
+        <div class="form-group">
+          <label for="budget">Presupuesto Semanal: €<span id="budget-value">50</span></label>
+          <input type="range" id="budget" min="20" max="200" step="5" value="50">
+          <div class="range-labels"><span>€20</span><span>€200</span></div>
+        </div>
+
+        <div class="form-group">
+          <label>Número de Personas</label>
+          <div class="button-group" id="people-group">
+            <button type="button" class="toggle-btn active" data-val="1">1</button>
+            <button type="button" class="toggle-btn" data-val="2">2</button>
+            <button type="button" class="toggle-btn" data-val="3">3</button>
+            <button type="button" class="toggle-btn" data-val="4">4</button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Tipo de Dieta</label>
+          <select id="diet-type">
+            <option value="omnivoro">Omnívoro</option>
+            <option value="vegetariano">Vegetariano</option>
+            <option value="vegano">Vegano</option>
+          </select>
+        </div>
+
+        <button type="submit" class="btn-primary">Generar Plan Semanal</button>
+      </form>
+    </section>
+
+    <section id="results-section" class="hidden">
+      <div class="card">
+        <div class="results-header">
+          <div>
+            <h2>Tu Plan Semanal</h2>
+            <p id="summary-text"></p>
+          </div>
+          <button id="btn-reset" class="btn-secondary">Nueva Configuración</button>
+        </div>
+
+        <div class="tabs">
+          <button class="tab-btn active" data-target="plan-content">Plan de Comidas</button>
+          <button class="tab-btn" data-target="shopping-content">Lista de Compras</button>
+        </div>
+
+        <div id="plan-content" class="tab-content active"></div>
+        <div id="shopping-content" class="tab-content hidden"></div>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
