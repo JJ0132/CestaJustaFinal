@@ -120,6 +120,38 @@
           </select>
         </div>
 
+        <div class="form-group">
+          <label>Intolerancias y Necesidades</label>
+            <p class="field-help">Puedes seleccionar varias opciones.</p>
+            <br>  
+          <div class="option-grid" id="intolerances-group">
+            <label class="option-card">
+              <input type="checkbox" name="intolerance" value="alergias" />
+              <span>Alergias alimentarias</span>
+            </label>
+            <label class="option-card">
+              <input type="checkbox" name="intolerance" value="lactosa" />
+              <span>Intolerancia a la lactosa</span>
+            </label>
+            <label class="option-card">
+              <input type="checkbox" name="intolerance" value="soja" />
+              <span>Alergia o intolerancia a la soja</span>
+            </label>
+            <label class="option-card">
+              <input type="checkbox" name="intolerance" value="diabetes" />
+              <span>Diabetes</span>
+            </label>
+            <label class="option-card">
+              <input type="checkbox" name="intolerance" value="hipertension" />
+              <span>Hipertensión</span>
+            </label>
+            <label class="option-card">
+              <input type="checkbox" name="intolerance" value="otras" />
+              <span>Otras necesidades dietéticas</span>
+            </label>
+          </div>
+        </div>
+
         <button type="submit" class="btn-primary">Generar Plan Semanal</button>
       </form>
     </section>

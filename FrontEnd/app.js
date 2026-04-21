@@ -12,17 +12,37 @@ const foodDatabase = [
 const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
 const USERS_STORAGE_KEY = 'cestajusta_users';
 const CURRENT_USER_STORAGE_KEY = 'cestajusta_current_user';
+const INTOLERANCE_LABELS = {
+  alergias: 'Alergias alimentarias',
+  lactosa: 'Intolerancia a la lactosa',
+  soja: 'Alergia o intolerancia a la soja',
+  diabetes: 'Diabetes',
+  hipertension: 'Hipertensión',
+  otras: 'Otras necesidades dietéticas',
+};
 
 // --- 2. LÓGICA DE NEGOCIO (Adaptada de mealPlanner.ts) ---
 function generateWeeklyMealPlan(profile) {
   const dailyBudget = profile.weeklyBudget / 7 / profile.people;
+  const selectedIntolerances = profile.intolerances || [];
 
   // Filtrado simple (omnívoro vs vegetariano/vegano)
   let availableFoods = foodDatabase.filter(food => {
     if (profile.dietType === 'vegetariano' && ['Pechuga de Pollo'].includes(food.name)) return false;
     if (profile.dietType === 'vegano' && ['Pechuga de Pollo', 'Yogur Natural'].includes(food.name)) return false;
+    if (selectedIntolerances.includes('alergias') && food.allergens.length > 0) return false;
+    if (selectedIntolerances.includes('lactosa') && food.allergens.includes('lactosa')) return false;
+    if (selectedIntolerances.includes('soja') && food.allergens.includes('soja')) return false;
     return true;
   });
+
+  if (availableFoods.length === 0) {
+    availableFoods = foodDatabase.filter(food => {
+      if (profile.dietType === 'vegetariano' && ['Pechuga de Pollo'].includes(food.name)) return false;
+      if (profile.dietType === 'vegano' && ['Pechuga de Pollo', 'Yogur Natural'].includes(food.name)) return false;
+      return true;
+    });
+  }
 
   const days = DAYS.map(day => {
     const breakfast = generateMeal('desayuno', availableFoods, dailyBudget * 0.25);
@@ -46,12 +66,16 @@ function generateMeal(mealType, availableFoods, budget) {
   let totalCost = 0; let totalCalories = 0;
 
   // Lógica simplificada de selección aleatoria (puedes ampliarla con tu lógica completa)
-  const getFood = (cat) => availableFoods.find(f => f.category === cat) || availableFoods[0];
+  const getFood = (cat, fallbackCategories = []) => {
+    return availableFoods.find(f => f.category === cat)
+      || fallbackCategories.map(category => availableFoods.find(f => f.category === category)).find(Boolean)
+      || availableFoods[0];
+  };
 
   if (mealType === 'desayuno') {
-    selectedFoods.push(getFood('carbohidrato'), getFood('lacteo'));
+    selectedFoods.push(getFood('carbohidrato', ['fruta']), getFood('lacteo', ['fruta', 'grasa']));
   } else {
-    selectedFoods.push(getFood('proteina'), getFood('verdura'));
+    selectedFoods.push(getFood('proteina', ['verdura', 'carbohidrato']), getFood('verdura', ['fruta', 'carbohidrato']));
   }
 
   selectedFoods.forEach(food => {
@@ -85,6 +109,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const goRegisterBtn = document.getElementById('go-register');
   const goLoginBtn = document.getElementById('go-login');
   const regPhoneInput = document.getElementById('reg-phone');
+  const intoleranceInputs = document.querySelectorAll('input[name="intolerance"]');
   const userMenu = document.getElementById('user-menu');
   const userMenuToggle = document.getElementById('user-menu-toggle');
   const userMenuDropdown = document.getElementById('user-menu-dropdown');
@@ -262,11 +287,15 @@ document.addEventListener('DOMContentLoaded', () => {
   // Envío del Formulario
   form.addEventListener('submit', (e) => {
     e.preventDefault();
+    const selectedIntolerances = Array.from(intoleranceInputs)
+      .filter(input => input.checked)
+      .map(input => input.value);
     
     const profile = {
       weeklyBudget: parseFloat(budgetInput.value),
       people: currentPeople,
       dietType: document.getElementById('diet-type').value,
+      intolerances: selectedIntolerances,
     };
 
     const mealPlan = generateWeeklyMealPlan(profile);
@@ -296,8 +325,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- 4. RENDERIZADO (Vistas) ---
   function renderResults(mealPlan) {
+    const intoleranceText = mealPlan.profile.intolerances.length > 0
+      ? ` | Restricciones: ${mealPlan.profile.intolerances.map(item => INTOLERANCE_LABELS[item]).join(', ')}`
+      : '';
+
     document.getElementById('summary-text').textContent = 
-      `Presupuesto: €${mealPlan.profile.weeklyBudget} | Total usado: €${mealPlan.totalCost.toFixed(2)}`;
+      `Presupuesto: €${mealPlan.profile.weeklyBudget} | Total usado: €${mealPlan.totalCost.toFixed(2)}${intoleranceText}`;
 
     // Renderizar Plan de Comidas
     planContent.innerHTML = mealPlan.days.map(day => `
