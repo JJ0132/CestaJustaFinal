@@ -1,165 +1,155 @@
-// --- 1. BASE DE DATOS (Muestra adaptada de foodDatabase.ts) ---
-const foodDatabase = [
-  { id: 'p1', name: 'Pechuga de Pollo', category: 'proteina', price: 6.99, unit: 'kg', calories: 165, allergens: [] },
-  { id: 'p6', name: 'Tofu', category: 'proteina', price: 2.80, unit: '400g', calories: 76, allergens: ['soja'] },
-  { id: 'c1', name: 'Arroz Integral', category: 'carbohidrato', price: 2.20, unit: 'kg', calories: 111, allergens: [] },
-  { id: 'v1', name: 'Brócoli', category: 'verdura', price: 2.50, unit: 'kg', calories: 34, allergens: [] },
-  { id: 'f2', name: 'Manzanas', category: 'fruta', price: 2.00, unit: 'kg', calories: 52, allergens: [] },
-  { id: 'l2', name: 'Yogur Natural', category: 'lacteo', price: 2.50, unit: '4 unid', calories: 59, allergens: ['lactosa'] },
-  { id: 'g1', name: 'Aceite de Oliva', category: 'grasa', price: 5.50, unit: 'litro', calories: 884, allergens: [] },
-];
+const foodDatabase = [];
+const RECETAS = {
+  desayuno: [],
+  almuerzo: [],
+  cena: [],
+};
 
-const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+const DAYS = ['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
+const DAY_EMOJIS = ['','','','','','',''];
+const MEAL_ICONS = { desayuno:'', almuerzo:'', cena:'' };
 const USERS_STORAGE_KEY = 'cestajusta_users';
 const CURRENT_USER_STORAGE_KEY = 'cestajusta_current_user';
 const INTOLERANCE_LABELS = {
-  alergias: 'Alergias alimentarias',
-  lactosa: 'Intolerancia a la lactosa',
-  soja: 'Alergia o intolerancia a la soja',
-  diabetes: 'Diabetes',
-  hipertension: 'Hipertensión',
-  otras: 'Otras necesidades dietéticas',
+  alergias:'Alergias alimentarias',
+  lactosa:'Intolerancia a la lactosa',
+  soja:'Alergia o intolerancia a la soja',
+  diabetes:'Diabetes',
+  hipertension:'Hipertensión',
+  otras:'Otras necesidades dietéticas',
 };
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
 
-// --- 2. LÓGICA DE NEGOCIO (Adaptada de mealPlanner.ts) ---
-function generateWeeklyMealPlan(profile) {
-  const dailyBudget = profile.weeklyBudget / 7 / profile.people;
-  const selectedIntolerances = profile.intolerances || [];
-
-  // Filtrado simple (omnívoro vs vegetariano/vegano)
-  let availableFoods = foodDatabase.filter(food => {
-    if (profile.dietType === 'vegetariano' && ['Pechuga de Pollo'].includes(food.name)) return false;
-    if (profile.dietType === 'vegano' && ['Pechuga de Pollo', 'Yogur Natural'].includes(food.name)) return false;
-    if (selectedIntolerances.includes('alergias') && food.allergens.length > 0) return false;
-    if (selectedIntolerances.includes('lactosa') && food.allergens.includes('lactosa')) return false;
-    if (selectedIntolerances.includes('soja') && food.allergens.includes('soja')) return false;
+function filterRecipes(recipes, profile) {
+  const sel = profile.intolerances || [];
+  return recipes.filter(recipe => {
+    const recipeFoods = recipe.foods.map(id => foodDatabase.find(f => f.id === id)).filter(Boolean);
+    for (const food of recipeFoods) {
+      if (profile.dietType === 'vegetariano' && ['Pechuga de Pollo','Merluza fresca','Atún en conserva','Pechuga de Pavo'].includes(food.name)) return false;
+      if (profile.dietType === 'vegano' && (food.category === 'lacteo' || ['Pechuga de Pollo','Merluza fresca','Atún en conserva','Pechuga de Pavo','Huevos camperos','Queso fresco'].includes(food.name))) return false;
+      if (sel.includes('alergias') && food.allergens.length > 0) return false;
+      if (sel.includes('lactosa') && food.allergens.includes('lactosa')) return false;
+      if (sel.includes('soja') && food.allergens.includes('soja')) return false;
+    }
     return true;
   });
+}
 
-  if (availableFoods.length === 0) {
-    availableFoods = foodDatabase.filter(food => {
-      if (profile.dietType === 'vegetariano' && ['Pechuga de Pollo'].includes(food.name)) return false;
-      if (profile.dietType === 'vegano' && ['Pechuga de Pollo', 'Yogur Natural'].includes(food.name)) return false;
-      return true;
-    });
-  }
+function generateWeeklyMealPlan(profile) {
+  const dailyBudget = profile.weeklyBudget / 7;
 
-  const days = DAYS.map(day => {
-    const breakfast = generateMeal('desayuno', availableFoods, dailyBudget * 0.25);
-    const lunch = generateMeal('almuerzo', availableFoods, dailyBudget * 0.4);
-    const dinner = generateMeal('cena', availableFoods, dailyBudget * 0.35);
+  const desayunos = filterRecipes(RECETAS.desayuno, profile);
+  const almuerzos = filterRecipes(RECETAS.almuerzo, profile);
+  const cenas     = filterRecipes(RECETAS.cena, profile);
+
+  const dShuffled = shuffle(desayunos.length ? desayunos : RECETAS.desayuno);
+  const aShuffled = shuffle(almuerzos.length ? almuerzos : RECETAS.almuerzo);
+  const cShuffled = shuffle(cenas.length ? cenas : RECETAS.cena);
+
+  const days = DAYS.map((day, i) => {
+    const breakfast = dShuffled[i % dShuffled.length];
+    const lunch     = aShuffled[i % aShuffled.length];
+    const dinner    = cShuffled[i % cShuffled.length];
+
+    const bFoods = breakfast.foods.map(id => foodDatabase.find(f => f.id === id)).filter(Boolean);
+    const lFoods = lunch.foods.map(id => foodDatabase.find(f => f.id === id)).filter(Boolean);
+    const dFoods = dinner.foods.map(id => foodDatabase.find(f => f.id === id)).filter(Boolean);
+
+    const bCost = bFoods.reduce((s,f) => s + f.price * 0.15, 0) * profile.people;
+    const lCost = lFoods.reduce((s,f) => s + f.price * 0.2, 0) * profile.people;
+    const dCost = dFoods.reduce((s,f) => s + f.price * 0.18, 0) * profile.people;
 
     return {
-      day,
-      breakfast, lunch, dinner,
-      dailyCost: (breakfast.totalCost + lunch.totalCost + dinner.totalCost) * profile.people,
-      dailyCalories: breakfast.totalCalories + lunch.totalCalories + dinner.totalCalories,
+      day, emoji: DAY_EMOJIS[i],
+      breakfast: { ...breakfast, totalCost: bCost, foods: bFoods },
+      lunch:     { ...lunch,     totalCost: lCost, foods: lFoods },
+      dinner:    { ...dinner,    totalCost: dCost, foods: dFoods },
+      dailyCost: bCost + lCost + dCost,
+      dailyCalories: breakfast.kcal + lunch.kcal + dinner.kcal,
     };
   });
 
-  const totalCost = days.reduce((sum, day) => sum + day.dailyCost, 0);
-  return { days, totalCost, profile };
+  const totalCost = days.reduce((s,d) => s + d.dailyCost, 0);
+  const totalCalories = days.reduce((s,d) => s + d.dailyCalories, 0);
+  const avgCalories = Math.round(totalCalories / 7);
+
+  return { days, totalCost, totalCalories, avgCalories, profile };
 }
-
-function generateMeal(mealType, availableFoods, budget) {
-  const selectedFoods = [];
-  let totalCost = 0; let totalCalories = 0;
-
-  // Lógica simplificada de selección aleatoria (puedes ampliarla con tu lógica completa)
-  const getFood = (cat, fallbackCategories = []) => {
-    return availableFoods.find(f => f.category === cat)
-      || fallbackCategories.map(category => availableFoods.find(f => f.category === category)).find(Boolean)
-      || availableFoods[0];
-  };
-
-  if (mealType === 'desayuno') {
-    selectedFoods.push(getFood('carbohidrato', ['fruta']), getFood('lacteo', ['fruta', 'grasa']));
-  } else {
-    selectedFoods.push(getFood('proteina', ['verdura', 'carbohidrato']), getFood('verdura', ['fruta', 'carbohidrato']));
+function initParticles() {
+  const container = document.getElementById('particles-container');
+  if (!container) return;
+  const count = 25;
+  for (let i = 0; i < count; i++) {
+    const p = document.createElement('div');
+    p.className = 'particle';
+    p.style.left = Math.random() * 100 + '%';
+    p.style.animationDuration = (6 + Math.random() * 8) + 's';
+    p.style.animationDelay = (Math.random() * 8) + 's';
+    p.style.width = p.style.height = (2 + Math.random() * 3) + 'px';
+    p.style.background = Math.random() > 0.5 ? 'var(--accent-1)' : 'var(--accent-2)';
+    container.appendChild(p);
   }
-
-  selectedFoods.forEach(food => {
-    totalCost += food.price * 0.15; // Estimación
-    totalCalories += food.calories * 0.15;
-  });
-
-  return { name: `Comida de ${selectedFoods[0].name}`, foods: selectedFoods, totalCost, totalCalories };
 }
-
-// --- 3. CONTROLADORES DEL DOM ---
 document.addEventListener('DOMContentLoaded', () => {
-  // Variables de Estado
+  initParticles();
+
   let currentPeople = 1;
-
-  // Elementos DOM
-  const budgetInput = document.getElementById('budget');
-  const budgetValue = document.getElementById('budget-value');
-  const peopleButtons = document.querySelectorAll('#people-group .toggle-btn');
-  const form = document.getElementById('preferences-form');
-  const prefSection = document.getElementById('preferences-section');
-  const resultsSection = document.getElementById('results-section');
-  const planContent = document.getElementById('plan-content');
-  const shoppingContent = document.getElementById('shopping-content');
-  const tabBtns = document.querySelectorAll('#results-section .tab-btn');
-  const authSection = document.getElementById('auth-section');
-  const appShell = document.getElementById('app-shell');
-  const authMessage = document.getElementById('auth-message');
-  const loginForm = document.getElementById('login-form');
-  const registerForm = document.getElementById('register-form');
-  const goRegisterBtn = document.getElementById('go-register');
-  const goLoginBtn = document.getElementById('go-login');
-  const regPhoneInput = document.getElementById('reg-phone');
+  const $ = id => document.getElementById(id);
+  const budgetInput    = $('budget');
+  const budgetValue    = $('budget-value');
+  const peopleButtons  = document.querySelectorAll('#people-group .toggle-btn');
+  const form           = $('preferences-form');
+  const prefSection    = $('preferences-section');
+  const resultsSection = $('results-section');
+  const planContent    = $('plan-content');
+  const shoppingContent= $('shopping-content');
+  const tabBtns        = document.querySelectorAll('#results-section .tab-btn');
+  const authSection    = $('auth-section');
+  const appShell       = $('app-shell');
+  const authMessage    = $('auth-message');
+  const loginForm      = $('login-form');
+  const registerForm   = $('register-form');
+  const goRegisterBtn  = $('go-register');
+  const goLoginBtn     = $('go-login');
+  const regPhoneInput  = $('reg-phone');
   const intoleranceInputs = document.querySelectorAll('input[name="intolerance"]');
-  const userMenu = document.getElementById('user-menu');
-  const userMenuToggle = document.getElementById('user-menu-toggle');
-  const userMenuDropdown = document.getElementById('user-menu-dropdown');
-  const accountBtn = document.getElementById('btn-account');
-  const logoutBtn = document.getElementById('btn-logout');
-
+  const userMenu       = $('user-menu');
+  const userMenuToggle = $('user-menu-toggle');
+  const userMenuDropdown = $('user-menu-dropdown');
+  const accountBtn     = $('btn-account');
+  const logoutBtn      = $('btn-logout');
   function getStoredUsers() {
-    try {
-      const usersRaw = localStorage.getItem(USERS_STORAGE_KEY);
-      return usersRaw ? JSON.parse(usersRaw) : [];
-    } catch (error) {
-      return [];
-    }
+    try { return JSON.parse(localStorage.getItem(USERS_STORAGE_KEY) || '[]'); }
+    catch { return []; }
   }
+  function saveUsers(users) { localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users)); }
+  function getCurrentUser() { return localStorage.getItem(CURRENT_USER_STORAGE_KEY); }
+  function setCurrentUser(u) { localStorage.setItem(CURRENT_USER_STORAGE_KEY, u); }
+  function clearCurrentUser() { localStorage.removeItem(CURRENT_USER_STORAGE_KEY); }
 
-  function saveUsers(users) {
-    localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
-  }
-
-  function getCurrentUser() {
-    return localStorage.getItem(CURRENT_USER_STORAGE_KEY);
-  }
-
-  function setCurrentUser(username) {
-    localStorage.setItem(CURRENT_USER_STORAGE_KEY, username);
-  }
-
-  function clearCurrentUser() {
-    localStorage.removeItem(CURRENT_USER_STORAGE_KEY);
-  }
-
-  function showAuthMessage(message, isError = false) {
-    authMessage.textContent = message;
+  function showAuthMessage(msg, isError = false) {
+    authMessage.textContent = msg;
     authMessage.classList.toggle('error', isError);
     authMessage.classList.toggle('success', !isError);
   }
 
   function switchAuthView(target) {
-    const showLogin = target === 'login';
-    loginForm.classList.toggle('hidden', !showLogin);
-    registerForm.classList.toggle('hidden', showLogin);
-    showAuthMessage('', false);
+    loginForm.classList.toggle('hidden', target !== 'login');
+    registerForm.classList.toggle('hidden', target === 'login');
+    showAuthMessage('');
   }
 
-  function closeUserMenu() {
-    userMenuDropdown.classList.add('hidden');
-  }
+  function closeUserMenu() { userMenuDropdown.classList.add('hidden'); }
 
   function updateUserMenu(username) {
-    userMenuToggle.textContent = username ? username : 'Mi perfil';
+    userMenuToggle.textContent = username ? `Mi perfil: ${username}` : 'Mi perfil';
   }
 
   function unlockApp() {
@@ -179,103 +169,68 @@ document.addEventListener('DOMContentLoaded', () => {
     closeUserMenu();
     userMenu.classList.add('hidden');
   }
-
   goRegisterBtn.addEventListener('click', () => switchAuthView('register'));
   goLoginBtn.addEventListener('click', () => switchAuthView('login'));
-  userMenuToggle.addEventListener('click', () => {
-    userMenuDropdown.classList.toggle('hidden');
-  });
-  accountBtn.addEventListener('click', () => {
-    closeUserMenu();
-  });
-  logoutBtn.addEventListener('click', () => {
-    clearCurrentUser();
-    lockApp();
+  userMenuToggle.addEventListener('click', () => userMenuDropdown.classList.toggle('hidden'));
+  accountBtn.addEventListener('click', () => closeUserMenu());
+  logoutBtn.addEventListener('click', () => { clearCurrentUser(); lockApp(); });
+  document.addEventListener('click', e => { if (!userMenu.contains(e.target)) closeUserMenu(); });
+
+  regPhoneInput.addEventListener('input', e => {
+    e.target.value = e.target.value.replace(/\D/g, '').slice(0, 9);
   });
 
-  document.addEventListener('click', (e) => {
-    if (!userMenu.contains(e.target)) {
-      closeUserMenu();
-    }
-  });
-
-  // Solo permite digitos y un maximo de 9 en tiempo real.
-  regPhoneInput.addEventListener('input', (e) => {
-    const onlyDigits = e.target.value.replace(/\D/g, '');
-    e.target.value = onlyDigits.slice(0, 9);
-  });
-
-  registerForm.addEventListener('submit', (e) => {
+  registerForm.addEventListener('submit', e => {
     e.preventDefault();
-
     const phoneValue = regPhoneInput.value.trim();
-    if (phoneValue.length !== 9) {
-      showAuthMessage('El telefono debe tener exactamente 9 numeros.', true);
-      return;
-    }
+    if (phoneValue.length !== 9) { showAuthMessage('El teléfono debe tener exactamente 9 números.', true); return; }
 
     const newUser = {
-      name: document.getElementById('reg-name').value.trim(),
-      lastName1: document.getElementById('reg-lastname1').value.trim(),
-      lastName2: document.getElementById('reg-lastname2').value.trim(),
-      username: document.getElementById('reg-username').value.trim(),
-      email: document.getElementById('reg-email').value.trim().toLowerCase(),
+      name: $('reg-name').value.trim(),
+      lastName1: $('reg-lastname1').value.trim(),
+      lastName2: $('reg-lastname2').value.trim(),
+      username: $('reg-username').value.trim(),
+      email: $('reg-email').value.trim().toLowerCase(),
       phone: phoneValue,
-      password: document.getElementById('reg-password').value,
+      password: $('reg-password').value,
     };
 
     const users = getStoredUsers();
-    const usernameTaken = users.some(user => user.username.toLowerCase() === newUser.username.toLowerCase());
-    const emailTaken = users.some(user => user.email === newUser.email);
-
-    if (usernameTaken) {
-      showAuthMessage('Ese nombre de usuario ya existe.', true);
-      return;
+    if (users.some(u => u.username.toLowerCase() === newUser.username.toLowerCase())) {
+      showAuthMessage('Ese nombre de usuario ya existe.', true); return;
     }
-
-    if (emailTaken) {
-      showAuthMessage('Ese correo ya esta registrado.', true);
-      return;
+    if (users.some(u => u.email === newUser.email)) {
+      showAuthMessage('Ese correo ya está registrado.', true); return;
     }
 
     users.push(newUser);
     saveUsers(users);
     registerForm.reset();
     switchAuthView('login');
-    showAuthMessage('Cuenta creada. Ahora inicia sesion con tu usuario.', false);
+    showAuthMessage('Cuenta creada. Ahora inicia sesión.', false);
   });
 
-  loginForm.addEventListener('submit', (e) => {
+  loginForm.addEventListener('submit', e => {
     e.preventDefault();
+    const username = $('login-username').value.trim();
+    const password = $('login-password').value;
+    const match = getStoredUsers().find(u =>
+      u.username.toLowerCase() === username.toLowerCase() && u.password === password
+    );
 
-    const username = document.getElementById('login-username').value.trim();
-    const password = document.getElementById('login-password').value;
-    const users = getStoredUsers();
-    const match = users.find(user => user.username.toLowerCase() === username.toLowerCase() && user.password === password);
-
-    if (!match) {
-      showAuthMessage('Usuario o contrasena incorrectos.', true);
-      return;
-    }
+    if (!match) { showAuthMessage('Usuario o contraseña incorrectos.', true); return; }
 
     setCurrentUser(match.username);
     updateUserMenu(match.username);
-    showAuthMessage('Inicio de sesion correcto.', false);
+    showAuthMessage('');
     unlockApp();
   });
 
   switchAuthView('login');
-
   const currentUser = getCurrentUser();
-  if (currentUser) {
-    updateUserMenu(currentUser);
-    unlockApp();
-  }
+  if (currentUser) { updateUserMenu(currentUser); unlockApp(); }
+  budgetInput.addEventListener('input', e => budgetValue.textContent = e.target.value);
 
-  // Actualizar UI del rango de presupuesto
-  budgetInput.addEventListener('input', (e) => budgetValue.textContent = e.target.value);
-
-  // Manejar botones de personas (comportamiento tipo Radio)
   peopleButtons.forEach(btn => {
     btn.addEventListener('click', () => {
       peopleButtons.forEach(b => b.classList.remove('active'));
@@ -283,88 +238,134 @@ document.addEventListener('DOMContentLoaded', () => {
       currentPeople = parseInt(btn.dataset.val);
     });
   });
-
-  // Envío del Formulario
-  form.addEventListener('submit', (e) => {
+  form.addEventListener('submit', e => {
     e.preventDefault();
-    const selectedIntolerances = Array.from(intoleranceInputs)
-      .filter(input => input.checked)
-      .map(input => input.value);
-    
+    const selectedIntolerances = Array.from(intoleranceInputs).filter(i => i.checked).map(i => i.value);
+
     const profile = {
       weeklyBudget: parseFloat(budgetInput.value),
       people: currentPeople,
-      dietType: document.getElementById('diet-type').value,
+      dietType: $('diet-type').value,
       intolerances: selectedIntolerances,
     };
-
-    const mealPlan = generateWeeklyMealPlan(profile);
-    renderResults(mealPlan);
-    
-    // Cambiar vistas
     prefSection.classList.add('hidden');
     resultsSection.classList.remove('hidden');
+    planContent.innerHTML = `
+      <div class="loading-container">
+        <div class="loading-spinner"></div>
+        <p class="loading-text">Generando tu plan perfecto...</p>
+      </div>`;
+    setTimeout(() => {
+      const mealPlan = generateWeeklyMealPlan(profile);
+      renderResults(mealPlan);
+    }, 1200);
   });
-
-  // Botón "Nueva Configuración"
-  document.getElementById('btn-reset').addEventListener('click', () => {
+  $('btn-reset').addEventListener('click', () => {
     resultsSection.classList.add('hidden');
     prefSection.classList.remove('hidden');
   });
-
-  // Navegación de Tabs (Plan vs Lista)
   tabBtns.forEach(btn => {
-    btn.addEventListener('click', (e) => {
+    btn.addEventListener('click', e => {
       tabBtns.forEach(b => b.classList.remove('active'));
       e.target.classList.add('active');
-      
       document.querySelectorAll('.tab-content').forEach(tc => tc.classList.add('hidden'));
-      document.getElementById(e.target.dataset.target).classList.remove('hidden');
+      $(e.target.dataset.target).classList.remove('hidden');
     });
   });
-
-  // --- 4. RENDERIZADO (Vistas) ---
   function renderResults(mealPlan) {
-    const intoleranceText = mealPlan.profile.intolerances.length > 0
-      ? ` | Restricciones: ${mealPlan.profile.intolerances.map(item => INTOLERANCE_LABELS[item]).join(', ')}`
+    const { days, totalCost, avgCalories, profile } = mealPlan;
+    const budgetPct = Math.min((totalCost / profile.weeklyBudget) * 100, 100);
+    const remaining = Math.max(profile.weeklyBudget - totalCost, 0);
+    const intoleranceText = profile.intolerances.length > 0
+      ? ` · ${profile.intolerances.map(i => INTOLERANCE_LABELS[i]).join(', ')}`
       : '';
-
-    document.getElementById('summary-text').textContent = 
-      `Presupuesto: €${mealPlan.profile.weeklyBudget} | Total usado: €${mealPlan.totalCost.toFixed(2)}${intoleranceText}`;
-
-    // Renderizar Plan de Comidas
-    planContent.innerHTML = mealPlan.days.map(day => `
+    $('summary-text').textContent =
+      `${profile.people} persona${profile.people > 1 ? 's' : ''} · Dieta ${profile.dietType}${intoleranceText}`;
+    $('stats-grid').innerHTML = `
+      <div class="stat-card">
+        <div class="stat-icon"></div>
+        <div class="stat-value">€${totalCost.toFixed(2)}</div>
+        <div class="stat-label">Coste total</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon"></div>
+        <div class="stat-value">€${remaining.toFixed(2)}</div>
+        <div class="stat-label">Restante</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon"></div>
+        <div class="stat-value">${avgCalories}</div>
+        <div class="stat-label">kcal / día</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon"></div>
+        <div class="stat-value">${days.length * 3}</div>
+        <div class="stat-label">Comidas</div>
+      </div>
+    `;
+    const barColor = budgetPct > 90 ? 'var(--gradient-warm)' : 'var(--gradient-main)';
+    $('budget-bar-container').innerHTML = `
+      <div class="budget-bar-header">
+        <span>Presupuesto utilizado</span>
+        <span>€${totalCost.toFixed(2)} / €${profile.weeklyBudget}</span>
+      </div>
+      <div class="budget-bar">
+        <div class="budget-bar-fill" style="width:0%;background:${barColor}"></div>
+      </div>
+    `;
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        const fill = document.querySelector('.budget-bar-fill');
+        if (fill) fill.style.width = budgetPct + '%';
+      }, 100);
+    });
+    planContent.innerHTML = days.map(day => `
       <div class="day-card">
-        <h3>${day.day} - €${day.dailyCost.toFixed(2)}</h3>
+        <h3>
+          <span>${day.emoji} ${day.day}</span>
+          <span class="day-price">€${day.dailyCost.toFixed(2)} · ${day.dailyCalories} kcal</span>
+        </h3>
         <div class="meal-item">
-          <div><strong>Desayuno:</strong> ${day.breakfast.name}</div>
-          <div>${Math.round(day.breakfast.totalCalories)} kcal</div>
+          <div><span class="meal-icon">${MEAL_ICONS.desayuno}</span><strong>Desayuno:</strong> ${day.breakfast.name}</div>
+          <div class="meal-calories">${day.breakfast.kcal} kcal</div>
         </div>
         <div class="meal-item">
-          <div><strong>Almuerzo:</strong> ${day.lunch.name}</div>
-          <div>${Math.round(day.lunch.totalCalories)} kcal</div>
+          <div><span class="meal-icon">${MEAL_ICONS.almuerzo}</span><strong>Almuerzo:</strong> ${day.lunch.name}</div>
+          <div class="meal-calories">${day.lunch.kcal} kcal</div>
         </div>
         <div class="meal-item">
-          <div><strong>Cena:</strong> ${day.dinner.name}</div>
-          <div>${Math.round(day.dinner.totalCalories)} kcal</div>
+          <div><span class="meal-icon">${MEAL_ICONS.cena}</span><strong>Cena:</strong> ${day.dinner.name}</div>
+          <div class="meal-calories">${day.dinner.kcal} kcal</div>
         </div>
       </div>
     `).join('');
-
-    // Renderizar Lista de Compras Básica
-    const uniqueFoods = new Set();
-    mealPlan.days.forEach(day => {
+    const ingredients = new Map();
+    days.forEach(day => {
       [day.breakfast, day.lunch, day.dinner].forEach(meal => {
-        meal.foods.forEach(f => uniqueFoods.add(f.name));
+        meal.foods.forEach(f => {
+          if (!ingredients.has(f.id)) {
+            ingredients.set(f.id, { ...f, qty: 1 });
+          } else {
+            ingredients.get(f.id).qty++;
+          }
+        });
       });
     });
 
+    const sortedIngredients = [...ingredients.values()].sort((a,b) => a.category.localeCompare(b.category));
+    const totalShoppingCost = sortedIngredients.reduce((s,f) => s + f.price, 0);
+
     shoppingContent.innerHTML = `
-      <div class="day-card">
-        <h3>Ingredientes a comprar:</h3>
-        <ul>
-          ${Array.from(uniqueFoods).map(item => `<li>${item}</li>`).join('')}
-        </ul>
+      <div class="day-card" style="margin-bottom:1rem">
+        <h3>Lista de la compra — ${sortedIngredients.length} productos · ~€${totalShoppingCost.toFixed(2)}</h3>
+      </div>
+      <div class="shopping-grid">
+        ${sortedIngredients.map(item => `
+          <div class="shopping-item">
+            <span class="item-dot"></span>
+            <span>${item.name} <small style="color:var(--text-muted)">(${item.unit})</small></span>
+          </div>
+        `).join('')}
       </div>
     `;
   }

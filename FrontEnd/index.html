@@ -3,17 +3,21 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>CestaJusta</title>
+  <meta name="description" content="CestaJusta — Planifica tus comidas semanales saludables ajustadas a tu presupuesto. Recetas variadas, lista de compras automática y seguimiento de gastos." />
+  <title>CestaJusta — Tu Menú Semanal Inteligente</title>
   <link rel="stylesheet" href="styles.css" />
+  <link rel="icon" type="image/jpeg" href="./Logo/CestaJusta.jpg" />
 </head>
 <body>
+<div class="hero-particles" id="particles-container" aria-hidden="true"></div>
+
   <header>
-    <div class="container header-content">
+    <div class="header-content">
       <div class="header-brand">
         <img src="./Logo/CestaJusta.jpg" alt="CestaJusta" class="logo"/>
         <div>
-          <h1>Dietas Saludables Personalizadas</h1>
-          <p>Planifica tus comidas semanales ajustadas a tu presupuesto y necesidades</p>
+          <h1>CestaJusta</h1>
+          <p>Menús saludables · Presupuesto inteligente</p>
         </div>
       </div>
 
@@ -21,82 +25,81 @@
         <button type="button" id="user-menu-toggle" class="user-menu-toggle">Mi perfil</button>
         <div id="user-menu-dropdown" class="user-menu-dropdown hidden">
           <button type="button" id="btn-account" class="user-menu-item">Ver mi cuenta</button>
-          <button type="button" id="btn-logout" class="user-menu-item">Cerrar sesion</button>
+          <button type="button" id="btn-logout" class="user-menu-item">Cerrar sesión</button>
         </div>
       </div>
     </div>
   </header>
 
   <main class="container">
-    <section id="auth-section" class="card auth-card">
-      <h2>Inicia Sesión</h2>
-      <p class="auth-subtitle">Accede a tu perfil o crea una cuenta para continuar.</p>
+<section id="auth-section" class="card auth-card">
+      <h2>Bienvenido</h2>
+      <p class="auth-subtitle">Inicia sesión o crea tu cuenta para empezar a planificar.</p>
 
       <form id="login-form" class="auth-form">
         <div class="form-group">
           <label for="login-username">Nombre de usuario</label>
-          <input type="text" id="login-username" required />
+          <input type="text" id="login-username" placeholder="tu_usuario" required />
         </div>
 
         <div class="form-group">
           <label for="login-password">Contraseña</label>
-          <input type="password" id="login-password" required />
+          <input type="password" id="login-password" placeholder="••••••••" required />
         </div>
 
         <button type="submit" class="btn-primary">Entrar</button>
-        <p class="auth-switch">No tienes cuenta? <button type="button" id="go-register" class="inline-link">Registrate</button></p>
+        <p class="auth-switch">¿No tienes cuenta? <button type="button" id="go-register" class="inline-link">Regístrate aquí</button></p>
       </form>
 
       <form id="register-form" class="auth-form hidden">
         <div class="form-group">
           <label for="reg-name">Nombre</label>
-          <input type="text" id="reg-name" required />
+          <input type="text" id="reg-name" placeholder="Juan" required />
         </div>
 
         <div class="form-group">
           <label for="reg-lastname1">Apellido 1</label>
-          <input type="text" id="reg-lastname1" required />
+          <input type="text" id="reg-lastname1" placeholder="García" required />
         </div>
 
         <div class="form-group">
           <label for="reg-lastname2">Apellido 2</label>
-          <input type="text" id="reg-lastname2" required />
+          <input type="text" id="reg-lastname2" placeholder="López" required />
         </div>
 
         <div class="form-group">
           <label for="reg-username">Nombre de usuario</label>
-          <input type="text" id="reg-username" required />
+          <input type="text" id="reg-username" placeholder="juangarcia" required />
         </div>
 
         <div class="form-group">
-          <label for="reg-email">Correo</label>
-          <input type="email" id="reg-email" required />
+          <label for="reg-email">Correo electrónico</label>
+          <input type="email" id="reg-email" placeholder="juan@email.com" required />
         </div>
 
         <div class="form-group">
-          <label for="reg-phone">Telefono</label>
-          <input type="tel" id="reg-phone" inputmode="numeric" maxlength="9" required />
+          <label for="reg-phone">Teléfono</label>
+          <input type="tel" id="reg-phone" inputmode="numeric" maxlength="9" placeholder="612345678" required />
         </div>
 
         <div class="form-group">
           <label for="reg-password">Contraseña</label>
-          <input type="password" id="reg-password" minlength="6" required />
+          <input type="password" id="reg-password" minlength="6" placeholder="Mínimo 6 caracteres" required />
         </div>
 
         <button type="submit" class="btn-primary">Crear cuenta</button>
-        <p class="auth-switch">Ya tienes cuenta? <button type="button" id="go-login" class="inline-link">Inicia sesion</button></p>
+        <p class="auth-switch">¿Ya tienes cuenta? <button type="button" id="go-login" class="inline-link">Inicia sesión</button></p>
       </form>
 
       <p id="auth-message" class="auth-message" aria-live="polite"></p>
     </section>
-
-    <section id="app-shell" class="hidden">
-    <section id="preferences-section" class="card">
-      <h2>Configura tu Perfil Nutricional</h2>
+<section id="app-shell" class="hidden">
+<section id="preferences-section" class="card">
+      <h2>Configura tu Plan</h2>
       <form id="preferences-form">
         
         <div class="form-group">
-          <label for="budget">Presupuesto Semanal: €<span id="budget-value">50</span></label>
+          <label for="budget">Presupuesto Semanal: <span style="color:var(--accent-1);font-weight:800">€<span id="budget-value">50</span></span></label>
           <input type="range" id="budget" min="20" max="200" step="5" value="50">
           <div class="range-labels"><span>€20</span><span>€200</span></div>
         </div>
@@ -112,7 +115,7 @@
         </div>
 
         <div class="form-group">
-          <label>Tipo de Dieta</label>
+          <label for="diet-type">Tipo de Dieta</label>
           <select id="diet-type">
             <option value="omnivoro">Omnívoro</option>
             <option value="vegetariano">Vegetariano</option>
@@ -122,8 +125,7 @@
 
         <div class="form-group">
           <label>Intolerancias y Necesidades</label>
-            <p class="field-help">Puedes seleccionar varias opciones.</p>
-            <br>  
+          <p class="field-help">Selecciona todo lo que aplique.</p>
           <div class="option-grid" id="intolerances-group">
             <label class="option-card">
               <input type="checkbox" name="intolerance" value="alergias" />
@@ -135,7 +137,7 @@
             </label>
             <label class="option-card">
               <input type="checkbox" name="intolerance" value="soja" />
-              <span>Alergia o intolerancia a la soja</span>
+              <span>Intolerancia a la soja</span>
             </label>
             <label class="option-card">
               <input type="checkbox" name="intolerance" value="diabetes" />
@@ -147,7 +149,7 @@
             </label>
             <label class="option-card">
               <input type="checkbox" name="intolerance" value="otras" />
-              <span>Otras necesidades dietéticas</span>
+              <span>Otras necesidades</span>
             </label>
           </div>
         </div>
@@ -155,8 +157,7 @@
         <button type="submit" class="btn-primary">Generar Plan Semanal</button>
       </form>
     </section>
-
-    <section id="results-section" class="hidden">
+<section id="results-section" class="hidden">
       <div class="card">
         <div class="results-header">
           <div>
@@ -165,6 +166,8 @@
           </div>
           <button id="btn-reset" class="btn-secondary">Nueva Configuración</button>
         </div>
+<div id="stats-grid" class="stats-grid"></div>
+<div id="budget-bar-container" class="budget-bar-container"></div>
 
         <div class="tabs">
           <button class="tab-btn active" data-target="plan-content">Plan de Comidas</button>
@@ -175,8 +178,13 @@
         <div id="shopping-content" class="tab-content hidden"></div>
       </div>
     </section>
+
     </section>
   </main>
+
+  <footer>
+    <p>CestaJusta © 2026 — Come bien, gasta justo. Hecho con amor</p>
+  </footer>
 
   <script src="app.js"></script>
 </body>
