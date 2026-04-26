@@ -205,8 +205,39 @@ function getRecipeId(recipe, type) {
   return `${type}:${explicitId ?? getRecipeName(recipe, type)}`;
 }
 
+function getComboKey(combo) {
+  return [
+    getRecipeId(combo.breakfast, 'desayuno'),
+    getRecipeId(combo.lunch, 'comida'),
+    getRecipeId(combo.dinner, 'cena'),
+  ].join('|');
+}
+
+function getCheapestRecipe(recipes, type, fallback) {
+  return [...recipes].sort((a, b) => getRecipePrice(a, type) - getRecipePrice(b, type))[0] || fallback;
+}
+
+function getMinimumDayCostPerPerson(desayunos, almuerzos, cenas) {
+  const fallback = {
+    breakfast: { nombre: 'Desayuno genÃ©rico', ingredientes: 'Pan, Aceite', precioTotal: 1.5 },
+    lunch: { nombre: 'Comida genÃ©rica', ingredientes: 'Arroz, Pollo', precioTotal: 3.5 },
+    dinner: { nombre: 'Cena genÃ©rica', ingredientes: 'Huevo, Patata', precioTotal: 2.0 },
+  };
+
+  const cheapestBreakfast = getCheapestRecipe(desayunos.length ? desayunos : RECETAS.desayuno, 'desayuno', fallback.breakfast);
+  const cheapestLunch = getCheapestRecipe(almuerzos.length ? almuerzos : RECETAS.almuerzo, 'comida', fallback.lunch);
+  const cheapestDinner = getCheapestRecipe(cenas.length ? cenas : RECETAS.cena, 'cena', fallback.dinner);
+
+  return getComboCostPerPerson({
+    breakfast: cheapestBreakfast,
+    lunch: cheapestLunch,
+    dinner: cheapestDinner,
+  });
+}
+
 function pickAffordableDay(desayunos, almuerzos, cenas, dailyBudgetPerPerson, options = {}) {
   const usedRecipeIds = options.usedRecipeIds || new Set();
+  const excludedComboKey = options.excludedComboKey || '';
   const fallback = {
     breakfast: { nombre: 'Desayuno genérico', ingredientes: 'Pan, Aceite', precioTotal: 1.5 },
     lunch: { nombre: 'Comida genérica', ingredientes: 'Arroz, Pollo', precioTotal: 3.5 },
@@ -234,6 +265,7 @@ function pickAffordableDay(desayunos, almuerzos, cenas, dailyBudgetPerPerson, op
 
   const scoreCombo = combo => {
     const cost = getComboCostPerPerson(combo);
+    const comboKey = getComboKey(combo);
     const repetitionPenalty = [
       getRecipeId(combo.breakfast, 'desayuno'),
       getRecipeId(combo.lunch, 'comida'),
@@ -241,8 +273,9 @@ function pickAffordableDay(desayunos, almuerzos, cenas, dailyBudgetPerPerson, op
     ].reduce((penalty, id) => penalty + (usedRecipeIds.has(id) ? 1 : 0), 0);
 
     return {
+      comboKey,
       cost,
-      repetitionPenalty,
+      repetitionPenalty: repetitionPenalty + (comboKey === excludedComboKey ? 1000 : 0),
       distanceToBudget: Math.abs(dailyBudgetPerPerson - cost),
     };
   };
@@ -293,12 +326,30 @@ function generateWeeklyMealPlan(profile) {
   const almuerzos = filterRecipes(RECETAS.almuerzo, profile);
   const cenas     = filterRecipes(RECETAS.cena, profile);
   const totalWeeklyBudget = getTotalWeeklyBudget(profile);
+  const minimumDayCostPerPerson = getMinimumDayCostPerPerson(desayunos, almuerzos, cenas);
+  const minimumWeeklyCost = minimumDayCostPerPerson * profile.people * DAYS.length;
+
+  if (totalWeeklyBudget < minimumWeeklyCost) {
+    return {
+      days: [],
+      totalCost: 0,
+      totalCalories: 0,
+      avgCalories: 0,
+      profile,
+      withinBudget: false,
+      minimumWeeklyCost,
+      budgetShortfall: minimumWeeklyCost - totalWeeklyBudget,
+    };
+  }
+
   let remainingBudget = totalWeeklyBudget;
   const usedRecipeIds = new Set();
 
   const days = DAYS.map((day, i) => {
     const remainingDays = DAYS.length - i;
-    const targetDailyBudgetTotal = remainingDays > 0 ? (remainingBudget / remainingDays) : remainingBudget;
+    const minimumFutureCost = minimumDayCostPerPerson * profile.people * (remainingDays - 1);
+    const maxAllowedForDayTotal = Math.max(remainingBudget - minimumFutureCost, 0);
+    const targetDailyBudgetTotal = remainingDays > 0 ? Math.min(remainingBudget / remainingDays, maxAllowedForDayTotal) : remainingBudget;
     const targetDailyBudgetPerPerson = profile.people > 0
       ? (targetDailyBudgetTotal / profile.people)
       : targetDailyBudgetTotal;
@@ -323,7 +374,16 @@ function generateWeeklyMealPlan(profile) {
 
   const { totalCost, totalCalories, avgCalories } = summarizeMealPlan(days);
 
-  return { days, totalCost, totalCalories, avgCalories, profile };
+  return {
+    days,
+    totalCost,
+    totalCalories,
+    avgCalories,
+    profile,
+    withinBudget: totalCost <= totalWeeklyBudget,
+    minimumWeeklyCost,
+    budgetShortfall: Math.max(totalCost - totalWeeklyBudget, 0),
+  };
 }
 function initParticles() {
   const container = document.getElementById('particles-container');
@@ -353,6 +413,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const prefSection    = $('preferences-section');
   const resultsSection = $('results-section');
   const planContent    = $('plan-content');
+  const planNotice     = $('plan-notice');
   const shoppingContent= $('shopping-content');
   const trackingContent= $('tracking-content');
   const tabBtns        = document.querySelectorAll('#results-section .tab-btn');
@@ -385,6 +446,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   async function saveTrackingPlan(mealPlan) {
     if (!trackingContent) return;
+    if (mealPlan.withinBudget === false) return;
 
     if (!currentUser?.premium) {
       trackingContent.innerHTML = `
@@ -406,6 +468,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (error) {
       trackingContent.innerHTML = `<p class="error">${error.message}</p>`;
     }
+  }
+
+  function showPlanNotice(message) {
+    if (!planNotice) return;
+    planNotice.textContent = message;
+    planNotice.classList.remove('hidden');
+  }
+
+  function clearPlanNotice() {
+    if (!planNotice) return;
+    planNotice.textContent = '';
+    planNotice.classList.add('hidden');
   }
 
   function renderTracking(resumen) {
@@ -710,6 +784,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('btn-reset').addEventListener('click', () => {
     resultsSection.classList.add('hidden');
     prefSection.classList.remove('hidden');
+    clearPlanNotice();
   });
   tabBtns.forEach(btn => {
     btn.addEventListener('click', e => {
@@ -724,6 +799,61 @@ document.addEventListener('DOMContentLoaded', async () => {
     const totalBudget = getTotalWeeklyBudget(profile);
     const budgetPct = totalBudget > 0 ? Math.min((totalCost / totalBudget) * 100, 100) : 100;
     const remaining = Math.max(totalBudget - totalCost, 0);
+    if (mealPlan.withinBudget === false) {
+      clearPlanNotice();
+      $('summary-text').textContent =
+        `${profile.people} persona${profile.people > 1 ? 's' : ''} · €${profile.weeklyBudget}/persona · dieta ${profile.dietType}`;
+      $('stats-grid').innerHTML = `
+        <div class="stat-card">
+          <div class="stat-icon"></div>
+          <div class="stat-value">€${totalBudget.toFixed(2)}</div>
+          <div class="stat-label">Presupuesto actual</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon"></div>
+          <div class="stat-value">€${mealPlan.minimumWeeklyCost.toFixed(2)}</div>
+          <div class="stat-label">Mínimo posible</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon"></div>
+          <div class="stat-value">€${mealPlan.budgetShortfall.toFixed(2)}</div>
+          <div class="stat-label">Faltan</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon"></div>
+          <div class="stat-value">7</div>
+          <div class="stat-label">Días solicitados</div>
+        </div>
+      `;
+      $('budget-bar-container').innerHTML = `
+        <div class="day-card">
+          <h3>Presupuesto insuficiente</h3>
+          <p style="color:var(--text-muted);font-size:0.95rem;margin-top:0.5rem">
+            No existe un menú semanal completo de 7 días que respete ese presupuesto con las recetas disponibles.
+            El mínimo posible para este perfil es €${mealPlan.minimumWeeklyCost.toFixed(2)}.
+          </p>
+        </div>
+      `;
+      planContent.innerHTML = `
+        <div class="day-card">
+          <h3>No se ha generado el menú</h3>
+          <p style="color:var(--text-muted);font-size:0.95rem;margin-top:0.5rem">
+            Ajusta el presupuesto o el número de personas para que el plan semanal pueda construirse sin sobrepasarlo.
+          </p>
+        </div>
+      `;
+      shoppingContent.innerHTML = `
+        <div class="day-card">
+          <h3>Lista de la compra no disponible</h3>
+          <p style="color:var(--text-muted);font-size:0.95rem;margin-top:0.5rem">
+            La lista se generará cuando exista un plan semanal completo dentro del presupuesto indicado.
+          </p>
+        </div>
+      `;
+      if (trackingContent) trackingContent.innerHTML = '';
+      return;
+    }
+    clearPlanNotice();
     $('summary-text').textContent =
       `${profile.people} persona${profile.people > 1 ? 's' : ''} · €${profile.weeklyBudget}/persona · dieta ${profile.dietType}`;
     $('stats-grid').innerHTML = `
@@ -829,15 +959,29 @@ document.addEventListener('DOMContentLoaded', async () => {
         const dayIndex = DAYS.indexOf(dayToChange);
         if (dayIndex === -1) return;
 
+        const desayunos = filterRecipes(RECETAS.desayuno, profile);
+        const almuerzos = filterRecipes(RECETAS.almuerzo, profile);
+        const cenas = filterRecipes(RECETAS.cena, profile);
+        const minimumDayCostPerPerson = getMinimumDayCostPerPerson(desayunos, almuerzos, cenas);
         const otherDaysCost = mealPlan.totalCost - mealPlan.days[dayIndex].dailyCost;
         const remainingBudgetForDay = Math.max(getTotalWeeklyBudget(profile) - otherDaysCost, 0);
+        if (remainingBudgetForDay < minimumDayCostPerPerson * profile.people) {
+          showPlanNotice(`No hay otra opción para ${dayToChange} sin superar el presupuesto disponible.`);
+          return;
+        }
         const dailyBudgetPerPerson = remainingBudgetForDay / profile.people;
+        const currentComboKey = getComboKey({
+          breakfast: mealPlan.days[dayIndex].breakfast,
+          lunch: mealPlan.days[dayIndex].lunch,
+          dinner: mealPlan.days[dayIndex].dinner,
+        });
         const { breakfast, lunch, dinner } = pickAffordableDay(
-          filterRecipes(RECETAS.desayuno, profile),
-          filterRecipes(RECETAS.almuerzo, profile),
-          filterRecipes(RECETAS.cena, profile),
+          desayunos,
+          almuerzos,
+          cenas,
           dailyBudgetPerPerson,
           {
+            excludedComboKey: currentComboKey,
             usedRecipeIds: new Set(
               mealPlan.days
                 .filter((_, index) => index !== dayIndex)
@@ -850,11 +994,20 @@ document.addEventListener('DOMContentLoaded', async () => {
           }
         );
 
+        const nextComboKey = getComboKey({ breakfast, lunch, dinner });
+        if (nextComboKey === currentComboKey) {
+          showPlanNotice(`No hay otra opción disponible para ${dayToChange} con ese presupuesto.`);
+          return;
+        }
+
         mealPlan.days[dayIndex] = buildDayPlan(dayToChange, dayIndex, breakfast, lunch, dinner, profile.people);
         const summary = summarizeMealPlan(mealPlan.days);
         mealPlan.totalCost = summary.totalCost;
         mealPlan.totalCalories = summary.totalCalories;
         mealPlan.avgCalories = summary.avgCalories;
+        mealPlan.withinBudget = mealPlan.totalCost <= getTotalWeeklyBudget(profile);
+        mealPlan.budgetShortfall = Math.max(mealPlan.totalCost - getTotalWeeklyBudget(profile), 0);
+        clearPlanNotice();
         renderResults(mealPlan);
         saveTrackingPlan(mealPlan);
       });
