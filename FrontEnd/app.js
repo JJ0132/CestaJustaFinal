@@ -95,42 +95,95 @@ function filterRecipes(recipes, profile) {
   });
 }
 
+function getTotalWeeklyBudget(profile) {
+  return (Number(profile.weeklyBudget) || 0) * (Number(profile.people) || 1);
+}
+
+function getMealCalories(type) {
+  const ranges = {
+    desayuno: [300, 150],
+    comida: [600, 250],
+    cena: [400, 200],
+  };
+  const [base, variance] = ranges[type] || [400, 200];
+  return base + Math.floor(Math.random() * variance);
+}
+
+function buildDayPlan(day, dayIndex, breakfast, lunch, dinner, people) {
+  const bCost = getRecipePrice(breakfast, 'desayuno') * people;
+  const lCost = getRecipePrice(lunch, 'comida') * people;
+  const dCost = getRecipePrice(dinner, 'cena') * people;
+  const bKcal = getMealCalories('desayuno');
+  const lKcal = getMealCalories('comida');
+  const dKcal = getMealCalories('cena');
+
+  return {
+    day, emoji: DAY_EMOJIS[dayIndex],
+    breakfast: { ...breakfast, totalCost: bCost, kcal: bKcal },
+    lunch:     { ...lunch,     totalCost: lCost, kcal: lKcal },
+    dinner:    { ...dinner,    totalCost: dCost, kcal: dKcal },
+    dailyCost: bCost + lCost + dCost,
+    dailyCalories: bKcal + lKcal + dKcal,
+  };
+}
+
+function pickAffordableDay(desayunos, almuerzos, cenas, dailyBudgetPerPerson) {
+  const fallback = {
+    breakfast: { nombre: 'Desayuno genérico', ingredientes: 'Pan, Aceite', precioTotal: 1.5 },
+    lunch: { nombre: 'Comida genérica', ingredientes: 'Arroz, Pollo', precioTotal: 3.5 },
+    dinner: { nombre: 'Cena genérica', ingredientes: 'Huevo, Patata', precioTotal: 2.0 },
+  };
+
+  const breakfastPool = shuffle(desayunos.length ? desayunos : RECETAS.desayuno);
+  const lunchPool = shuffle(almuerzos.length ? almuerzos : RECETAS.almuerzo);
+  const dinnerPool = shuffle(cenas.length ? cenas : RECETAS.cena);
+
+  const cheapest = {
+    breakfast: [...breakfastPool].sort((a, b) => getRecipePrice(a, 'desayuno') - getRecipePrice(b, 'desayuno'))[0] || fallback.breakfast,
+    lunch: [...lunchPool].sort((a, b) => getRecipePrice(a, 'comida') - getRecipePrice(b, 'comida'))[0] || fallback.lunch,
+    dinner: [...dinnerPool].sort((a, b) => getRecipePrice(a, 'cena') - getRecipePrice(b, 'cena'))[0] || fallback.dinner,
+  };
+
+  let best = cheapest;
+  const bestCost = combo =>
+    getRecipePrice(combo.breakfast, 'desayuno') +
+    getRecipePrice(combo.lunch, 'comida') +
+    getRecipePrice(combo.dinner, 'cena');
+
+  for (let i = 0; i < 500; i++) {
+    const combo = {
+      breakfast: breakfastPool[i % breakfastPool.length] || cheapest.breakfast,
+      lunch: lunchPool[(i * 7) % lunchPool.length] || cheapest.lunch,
+      dinner: dinnerPool[(i * 13) % dinnerPool.length] || cheapest.dinner,
+    };
+
+    const cost = bestCost(combo);
+    if (cost <= dailyBudgetPerPerson) return combo;
+    if (cost < bestCost(best)) best = combo;
+  }
+
+  return best;
+}
+
+function summarizeMealPlan(days) {
+  const totalCost = days.reduce((s,d) => s + d.dailyCost, 0);
+  const totalCalories = days.reduce((s,d) => s + d.dailyCalories, 0);
+  const avgCalories = Math.round(totalCalories / 7);
+  return { totalCost, totalCalories, avgCalories };
+}
+
 function generateWeeklyMealPlan(profile) {
   const desayunos = filterRecipes(RECETAS.desayuno, profile);
   const almuerzos = filterRecipes(RECETAS.almuerzo, profile);
   const cenas     = filterRecipes(RECETAS.cena, profile);
-
-  const dShuffled = shuffle(desayunos.length ? desayunos : RECETAS.desayuno);
-  const aShuffled = shuffle(almuerzos.length ? almuerzos : RECETAS.almuerzo);
-  const cShuffled = shuffle(cenas.length ? cenas : RECETAS.cena);
+  const dailyBudgetPerPerson = (Number(profile.weeklyBudget) || 0) / 7;
 
   const days = DAYS.map((day, i) => {
-    const breakfast = dShuffled[i % dShuffled.length] || { nombre: 'Desayuno genérico', ingredientes: 'Pan, Aceite', precioTotal: 1.5 };
-    const lunch     = aShuffled[i % aShuffled.length] || { nombre: 'Comida genérica', ingredientes: 'Arroz, Pollo', precioTotal: 3.5 };
-    const dinner    = cShuffled[i % cShuffled.length] || { nombre: 'Cena genérica', ingredientes: 'Huevo, Patata', precioTotal: 2.0 };
-
-    const bCost = breakfast.precioTotal * profile.people;
-    const lCost = lunch.precioTotal * profile.people;
-    const dCost = dinner.precioTotal * profile.people;
-    
-    // Generar calorías falsas para mantener la UI
-    const bKcal = 300 + Math.floor(Math.random() * 150);
-    const lKcal = 600 + Math.floor(Math.random() * 250);
-    const dKcal = 400 + Math.floor(Math.random() * 200);
-
-    return {
-      day, emoji: DAY_EMOJIS[i],
-      breakfast: { ...breakfast, totalCost: bCost, kcal: bKcal },
-      lunch:     { ...lunch,     totalCost: lCost, kcal: lKcal },
-      dinner:    { ...dinner,    totalCost: dCost, kcal: dKcal },
-      dailyCost: bCost + lCost + dCost,
-      dailyCalories: bKcal + lKcal + dKcal,
-    };
+    const { breakfast, lunch, dinner } = pickAffordableDay(desayunos, almuerzos, cenas, dailyBudgetPerPerson);
+    return buildDayPlan(day, i, breakfast, lunch, dinner, profile.people);
   });
 
-  const totalCost = days.reduce((s,d) => s + d.dailyCost, 0);
-  const totalCalories = days.reduce((s,d) => s + d.dailyCalories, 0);
-  const avgCalories = Math.round(totalCalories / 7);
+  const { totalCost, totalCalories, avgCalories } = summarizeMealPlan(days);
 
   return { days, totalCost, totalCalories, avgCalories, profile };
 }
@@ -530,10 +583,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
   function renderResults(mealPlan) {
     const { days, totalCost, avgCalories, profile } = mealPlan;
-    const budgetPct = Math.min((totalCost / profile.weeklyBudget) * 100, 100);
-    const remaining = Math.max(profile.weeklyBudget - totalCost, 0);
+    const totalBudget = getTotalWeeklyBudget(profile);
+    const budgetPct = totalBudget > 0 ? Math.min((totalCost / totalBudget) * 100, 100) : 100;
+    const remaining = Math.max(totalBudget - totalCost, 0);
     $('summary-text').textContent =
-      `${profile.people} persona${profile.people > 1 ? 's' : ''} · dieta ${profile.dietType}`;
+      `${profile.people} persona${profile.people > 1 ? 's' : ''} · €${profile.weeklyBudget}/persona · dieta ${profile.dietType}`;
     $('stats-grid').innerHTML = `
       <div class="stat-card">
         <div class="stat-icon"></div>
@@ -560,7 +614,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     $('budget-bar-container').innerHTML = `
       <div class="budget-bar-header">
         <span>Presupuesto utilizado</span>
-        <span>€${totalCost.toFixed(2)} / €${profile.weeklyBudget}</span>
+        <span>€${totalCost.toFixed(2)} / €${totalBudget.toFixed(2)}</span>
       </div>
       <div class="budget-bar">
         <div class="budget-bar-fill" style="width:0%;background:${barColor}"></div>
@@ -573,12 +627,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       }, 100);
     });
     planContent.innerHTML = days.map(day => `
-      <div class="day-card" style="position: relative;">
-        <button class="btn-change-day" data-day="${day.day}" style="position: absolute; top: 1rem; right: 1rem; font-size: 0.8rem; padding: 0.3rem 0.6rem; border-radius: 4px; background: var(--bg-card); color: var(--text-main); border: 1px solid var(--border-color); cursor: pointer;">Cambiar día</button>
-        <h3>
-          <span>${day.emoji} ${day.day}</span>
-          <span class="day-price">€${day.dailyCost.toFixed(2)} · ${day.dailyCalories} kcal</span>
-        </h3>
+      <div class="day-card">
+        <div class="day-card-header">
+          <h3>
+            <span>${day.emoji} ${day.day}</span>
+            <span class="day-price">€${day.dailyCost.toFixed(2)} · ${day.dailyCalories} kcal</span>
+          </h3>
+          <button class="btn-change-day" data-day="${day.day}">Cambiar día</button>
+        </div>
         <div class="meal-item">
           <div><span class="meal-icon">${MEAL_ICONS.desayuno}</span><strong>Desayuno:</strong> ${day.breakfast.nombre}</div>
           <div class="meal-calories">${day.breakfast.kcal} kcal · €${day.breakfast.totalCost.toFixed(2)}</div>
@@ -635,40 +691,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         const dayIndex = DAYS.indexOf(dayToChange);
         if (dayIndex === -1) return;
 
-        const pickRecipe = (recipes, fallback) => {
-          const filtered = filterRecipes(recipes, profile);
-          return shuffle(filtered.length ? filtered : recipes)[0] || fallback;
-        };
+        const otherDaysCost = mealPlan.totalCost - mealPlan.days[dayIndex].dailyCost;
+        const remainingBudgetForDay = Math.max(getTotalWeeklyBudget(profile) - otherDaysCost, 0);
+        const dailyBudgetPerPerson = remainingBudgetForDay / profile.people;
+        const { breakfast, lunch, dinner } = pickAffordableDay(
+          filterRecipes(RECETAS.desayuno, profile),
+          filterRecipes(RECETAS.almuerzo, profile),
+          filterRecipes(RECETAS.cena, profile),
+          dailyBudgetPerPerson
+        );
 
-        const desayuno = pickRecipe(RECETAS.desayuno, { nombre: 'Desayuno alternativo', precioTotal: 0 });
-        const comida = pickRecipe(RECETAS.almuerzo, { nombre: 'Comida alternativa', precioTotal: 0 });
-        const cena = pickRecipe(RECETAS.cena, { nombre: 'Cena alternativa', precioTotal: 0 });
-
-        mealPlan.days[dayIndex] = {
-          day: dayToChange,
-          emoji: DAY_EMOJIS[dayIndex],
-          breakfast: {
-            ...desayuno,
-            totalCost: getRecipePrice(desayuno, 'desayuno') * profile.people,
-            kcal: 300 + Math.floor(Math.random() * 150)
-          },
-          lunch: {
-            ...comida,
-            totalCost: getRecipePrice(comida, 'comida') * profile.people,
-            kcal: 600 + Math.floor(Math.random() * 250)
-          },
-          dinner: {
-            ...cena,
-            totalCost: getRecipePrice(cena, 'cena') * profile.people,
-            kcal: 400 + Math.floor(Math.random() * 200)
-          }
-        };
-        const changedDay = mealPlan.days[dayIndex];
-        changedDay.dailyCost = changedDay.breakfast.totalCost + changedDay.lunch.totalCost + changedDay.dinner.totalCost;
-        changedDay.dailyCalories = changedDay.breakfast.kcal + changedDay.lunch.kcal + changedDay.dinner.kcal;
-        mealPlan.totalCost = mealPlan.days.reduce((s,d) => s + d.dailyCost, 0);
-        mealPlan.totalCalories = mealPlan.days.reduce((s,d) => s + d.dailyCalories, 0);
-        mealPlan.avgCalories = Math.round(mealPlan.totalCalories / 7);
+        mealPlan.days[dayIndex] = buildDayPlan(dayToChange, dayIndex, breakfast, lunch, dinner, profile.people);
+        const summary = summarizeMealPlan(mealPlan.days);
+        mealPlan.totalCost = summary.totalCost;
+        mealPlan.totalCalories = summary.totalCalories;
+        mealPlan.avgCalories = summary.avgCalories;
         renderResults(mealPlan);
         saveTrackingPlan(mealPlan);
       });

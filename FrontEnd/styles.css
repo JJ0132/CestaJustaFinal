@@ -626,7 +626,7 @@ input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.15); }
   transform: translateY(-2px);
 }
 
-.day-card h3 {
+.day-card > h3 {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -635,10 +635,51 @@ input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.15); }
   border-bottom: 1px solid var(--border);
 }
 
+.day-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 0.6rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.day-card-header h3 {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.8rem;
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+
 .day-price {
   font-size: 0.85rem;
   font-weight: 700;
   color: var(--accent-3);
+  white-space: nowrap;
+}
+
+.btn-change-day {
+  flex-shrink: 0;
+  padding: 0.45rem 0.75rem;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  background: var(--glass);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 700;
+  transition: all 0.2s ease;
+}
+
+.btn-change-day:hover {
+  background: var(--glass-hover);
+  border-color: var(--accent-1);
+  color: var(--text-primary);
 }
 
 .meal-item {
@@ -718,6 +759,16 @@ footer a:hover { text-decoration: underline; }
 @media (max-width: 480px) {
   .stats-grid { grid-template-columns: 1fr 1fr; }
   .shopping-grid { grid-template-columns: 1fr; }
+  .day-card-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .day-card-header h3 {
+    width: 100%;
+  }
+  .btn-change-day {
+    align-self: flex-start;
+  }
 }
 .loading-container {
   display: flex;
