@@ -1,4 +1,3 @@
-const foodDatabase = [];
 const RECETAS = {
   desayuno: [],
   almuerzo: [],
@@ -10,14 +9,24 @@ const DAY_EMOJIS = ['','','','','','',''];
 const MEAL_ICONS = { desayuno:'', almuerzo:'', cena:'' };
 const USERS_STORAGE_KEY = 'cestajusta_users';
 const CURRENT_USER_STORAGE_KEY = 'cestajusta_current_user';
-const INTOLERANCE_LABELS = {
-  alergias:'Alergias alimentarias',
-  lactosa:'Intolerancia a la lactosa',
-  soja:'Alergia o intolerancia a la soja',
-  diabetes:'Diabetes',
-  hipertension:'Hipertensión',
-  otras:'Otras necesidades dietéticas',
-};
+
+
+async function loadRecipesFromAPI() {
+  try {
+    const [d, c, ce] = await Promise.all([
+      fetch('http://localhost:5050/api/recetas/desayuno').then(r => r.json()),
+      fetch('http://localhost:5050/api/recetas/comida').then(r => r.json()),
+      fetch('http://localhost:5050/api/recetas/cena').then(r => r.json())
+    ]);
+    RECETAS.desayuno = d;
+    RECETAS.almuerzo = c;
+    RECETAS.cena = ce;
+    console.log("Recetas cargadas desde la API:", { desayuno: d.length, almuerzo: c.length, cena: ce.length });
+  } catch (error) {
+    console.error("Error al cargar recetas de la API:", error);
+  }
+}
+
 function shuffle(arr) {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
@@ -27,24 +36,32 @@ function shuffle(arr) {
   return a;
 }
 
+// Helper: extract a simple list of ingredients from a recipe name
+function extractIngredientsFromName(name) {
+  if (!name) return '';
+  // split by commas first
+  let parts = name.split(',').map(p => p.trim()).filter(Boolean);
+  // for any part that contains ' y ' or ' and ', split further
+  parts = parts.flatMap(p => p.split(/\s+y\s+|\s+and\s+/i).map(s => s.trim()).filter(Boolean));
+  // remove short words that are unlikely ingredient tokens (very naive)
+  const cleaned = parts.map(p => p.replace(/\s*\(.*?\)\s*/g, '').trim()).filter(Boolean);
+  // dedupe
+  return Array.from(new Set(cleaned)).join(', ');
+}
+
 function filterRecipes(recipes, profile) {
-  const sel = profile.intolerances || [];
   return recipes.filter(recipe => {
-    const recipeFoods = recipe.foods.map(id => foodDatabase.find(f => f.id === id)).filter(Boolean);
-    for (const food of recipeFoods) {
-      if (profile.dietType === 'vegetariano' && ['Pechuga de Pollo','Merluza fresca','Atún en conserva','Pechuga de Pavo'].includes(food.name)) return false;
-      if (profile.dietType === 'vegano' && (food.category === 'lacteo' || ['Pechuga de Pollo','Merluza fresca','Atún en conserva','Pechuga de Pavo','Huevos camperos','Queso fresco'].includes(food.name))) return false;
-      if (sel.includes('alergias') && food.allergens.length > 0) return false;
-      if (sel.includes('lactosa') && food.allergens.includes('lactosa')) return false;
-      if (sel.includes('soja') && food.allergens.includes('soja')) return false;
-    }
+    const ingr = (recipe.ingredientes || '').toLowerCase();
+    
+    // Filtrados muy básicos basados en texto para la demo
+    if (profile.dietType === 'vegetariano' && (ingr.includes('pollo') || ingr.includes('merluza') || ingr.includes('atún') || ingr.includes('ternera') || ingr.includes('pavo') || ingr.includes('cerdo') || ingr.includes('jamón'))) return false;
+    if (profile.dietType === 'vegano' && (ingr.includes('pollo') || ingr.includes('merluza') || ingr.includes('atún') || ingr.includes('ternera') || ingr.includes('pavo') || ingr.includes('cerdo') || ingr.includes('huevo') || ingr.includes('queso') || ingr.includes('leche') || ingr.includes('yogur') || ingr.includes('mantequilla') || ingr.includes('jamón'))) return false;
+    
     return true;
   });
 }
 
 function generateWeeklyMealPlan(profile) {
-  const dailyBudget = profile.weeklyBudget / 7;
-
   const desayunos = filterRecipes(RECETAS.desayuno, profile);
   const almuerzos = filterRecipes(RECETAS.almuerzo, profile);
   const cenas     = filterRecipes(RECETAS.cena, profile);
@@ -54,25 +71,26 @@ function generateWeeklyMealPlan(profile) {
   const cShuffled = shuffle(cenas.length ? cenas : RECETAS.cena);
 
   const days = DAYS.map((day, i) => {
-    const breakfast = dShuffled[i % dShuffled.length];
-    const lunch     = aShuffled[i % aShuffled.length];
-    const dinner    = cShuffled[i % cShuffled.length];
+    const breakfast = dShuffled[i % dShuffled.length] || { nombre: 'Desayuno genérico', ingredientes: 'Pan, Aceite', precioTotal: 1.5 };
+    const lunch     = aShuffled[i % aShuffled.length] || { nombre: 'Comida genérica', ingredientes: 'Arroz, Pollo', precioTotal: 3.5 };
+    const dinner    = cShuffled[i % cShuffled.length] || { nombre: 'Cena genérica', ingredientes: 'Huevo, Patata', precioTotal: 2.0 };
 
-    const bFoods = breakfast.foods.map(id => foodDatabase.find(f => f.id === id)).filter(Boolean);
-    const lFoods = lunch.foods.map(id => foodDatabase.find(f => f.id === id)).filter(Boolean);
-    const dFoods = dinner.foods.map(id => foodDatabase.find(f => f.id === id)).filter(Boolean);
-
-    const bCost = bFoods.reduce((s,f) => s + f.price * 0.15, 0) * profile.people;
-    const lCost = lFoods.reduce((s,f) => s + f.price * 0.2, 0) * profile.people;
-    const dCost = dFoods.reduce((s,f) => s + f.price * 0.18, 0) * profile.people;
+    const bCost = breakfast.precioTotal * profile.people;
+    const lCost = lunch.precioTotal * profile.people;
+    const dCost = dinner.precioTotal * profile.people;
+    
+    // Generar calorías falsas para mantener la UI
+    const bKcal = 300 + Math.floor(Math.random() * 150);
+    const lKcal = 600 + Math.floor(Math.random() * 250);
+    const dKcal = 400 + Math.floor(Math.random() * 200);
 
     return {
       day, emoji: DAY_EMOJIS[i],
-      breakfast: { ...breakfast, totalCost: bCost, foods: bFoods },
-      lunch:     { ...lunch,     totalCost: lCost, foods: lFoods },
-      dinner:    { ...dinner,    totalCost: dCost, foods: dFoods },
+      breakfast: { ...breakfast, totalCost: bCost, kcal: bKcal },
+      lunch:     { ...lunch,     totalCost: lCost, kcal: lKcal },
+      dinner:    { ...dinner,    totalCost: dCost, kcal: dKcal },
       dailyCost: bCost + lCost + dCost,
-      dailyCalories: breakfast.kcal + lunch.kcal + dinner.kcal,
+      dailyCalories: bKcal + lKcal + dKcal,
     };
   });
 
@@ -97,8 +115,9 @@ function initParticles() {
     container.appendChild(p);
   }
 }
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   initParticles();
+  await loadRecipesFromAPI();
 
   let currentPeople = 1;
   const $ = id => document.getElementById(id);
@@ -119,7 +138,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const goRegisterBtn  = $('go-register');
   const goLoginBtn     = $('go-login');
   const regPhoneInput  = $('reg-phone');
-  const intoleranceInputs = document.querySelectorAll('input[name="intolerance"]');
+
   const userMenu       = $('user-menu');
   const userMenuToggle = $('user-menu-toggle');
   const userMenuDropdown = $('user-menu-dropdown');
@@ -238,15 +257,12 @@ document.addEventListener('DOMContentLoaded', () => {
       currentPeople = parseInt(btn.dataset.val);
     });
   });
-  form.addEventListener('submit', e => {
+  form.addEventListener('submit', async e => {
     e.preventDefault();
-    const selectedIntolerances = Array.from(intoleranceInputs).filter(i => i.checked).map(i => i.value);
-
     const profile = {
       weeklyBudget: parseFloat(budgetInput.value),
       people: currentPeople,
-      dietType: $('diet-type').value,
-      intolerances: selectedIntolerances,
+      dietType: $('diet-type').value
     };
     prefSection.classList.add('hidden');
     resultsSection.classList.remove('hidden');
@@ -255,10 +271,102 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="loading-spinner"></div>
         <p class="loading-text">Generando tu plan perfecto...</p>
       </div>`;
-    setTimeout(() => {
-      const mealPlan = generateWeeklyMealPlan(profile);
-      renderResults(mealPlan);
-    }, 1200);
+    
+    try {
+      const esVegetariano = profile.dietType === 'vegetariano' || profile.dietType === 'vegano' ? 'true' : 'false';
+      const response = await fetch(`http://localhost:5088/api/menusemanal?esVegetariano=${esVegetariano}`);
+      if (!response.ok) {
+        throw new Error('Network response was not ok');
+      }
+      const data = await response.json();
+      
+      setTimeout(() => {
+        // Encontramos un menú que se ajuste al presupuesto
+        // Buscamos menús cuyo precio semanal * personas sea menor o igual al presupuesto
+        const validMenus = data.filter(m => m.precioSemana * profile.people <= profile.weeklyBudget);
+        
+        let selectedMenu;
+        if (validMenus.length > 0) {
+          // Seleccionamos uno aleatorio entre los válidos
+          selectedMenu = validMenus[Math.floor(Math.random() * validMenus.length)];
+        } else {
+          // Si no hay ninguno que encaje, cogemos el más barato
+          selectedMenu = data.sort((a,b) => a.precioSemana - b.precioSemana)[0];
+          // O si el array está vacío (no hay menús)
+          if (!selectedMenu) {
+            planContent.innerHTML = `<p class="error">No se encontraron menús para esta configuración.</p>`;
+            return;
+          }
+        }
+
+        // Mapear el menú seleccionado al formato que espera renderResults
+        const diasKeys = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'];
+        
+        const mappedDays = DAYS.map((dayName, i) => {
+          const apiDayStr = diasKeys[i];
+          const diaData = selectedMenu[apiDayStr] || {};
+          
+          const desayunoData = diaData.desayuno || { NombreDesayuno: 'Desayuno genérico', Precio_Desayuno: 1.5 };
+          const comidaData = diaData.comida || { NombreComida: 'Comida genérica', Precio_Comida: 3.5 };
+          const cenaData = diaData.cena || { NombreCena: 'Cena genérica', Precio_Cena: 2.0 };
+
+          const breakfast = { 
+            nombre: desayunoData.NombreDesayuno, 
+            // ingredientes: 'Por definir', // El backend no devuelve ingredientes en la receta
+            totalCost: desayunoData.Precio_Desayuno * profile.people,
+            kcal: 300 + Math.floor(Math.random() * 150)
+          };
+          
+          const lunch = { 
+            nombre: comidaData.NombreComida, 
+            // ingredientes: 'Por definir', 
+            totalCost: comidaData.Precio_Comida * profile.people,
+            kcal: 600 + Math.floor(Math.random() * 250)
+          };
+          
+          const dinner = { 
+            nombre: cenaData.NombreCena, 
+            // ingredientes: 'Por definir', 
+            totalCost: cenaData.Precio_Cena * profile.people,
+            kcal: 400 + Math.floor(Math.random() * 200)
+          };
+
+          const bCost = breakfast.totalCost;
+          const lCost = lunch.totalCost;
+          const dCost = dinner.totalCost;
+          
+          return {
+            day: dayName,
+            emoji: DAY_EMOJIS[i],
+            breakfast,
+            lunch,
+            dinner,
+            dailyCost: bCost + lCost + dCost,
+            dailyCalories: breakfast.kcal + lunch.kcal + dinner.kcal,
+          };
+        });
+
+        const totalCost = mappedDays.reduce((s,d) => s + d.dailyCost, 0);
+        const totalCalories = mappedDays.reduce((s,d) => s + d.dailyCalories, 0);
+        const avgCalories = Math.round(totalCalories / 7);
+
+        const mealPlan = {
+          days: mappedDays,
+          totalCost,
+          totalCalories,
+          avgCalories,
+          profile,
+          // Guardo los datos originales para poder cambiar días
+          _apiData: data,
+          _selectedMenu: selectedMenu
+        };
+
+        renderResults(mealPlan);
+      }, 1200);
+    } catch (error) {
+       console.error("Fetch error:", error);
+       planContent.innerHTML = `<p class="error">Hubo un error cargando el menú. Por favor intenta de nuevo.</p>`;
+    }
   });
   $('btn-reset').addEventListener('click', () => {
     resultsSection.classList.add('hidden');
@@ -276,11 +384,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const { days, totalCost, avgCalories, profile } = mealPlan;
     const budgetPct = Math.min((totalCost / profile.weeklyBudget) * 100, 100);
     const remaining = Math.max(profile.weeklyBudget - totalCost, 0);
-    const intoleranceText = profile.intolerances.length > 0
-      ? ` · ${profile.intolerances.map(i => INTOLERANCE_LABELS[i]).join(', ')}`
-      : '';
     $('summary-text').textContent =
-      `${profile.people} persona${profile.people > 1 ? 's' : ''} · Dieta ${profile.dietType}${intoleranceText}`;
+      `${profile.people} persona${profile.people > 1 ? 's' : ''} · Dieta ${profile.dietType}`;
     $('stats-grid').innerHTML = `
       <div class="stat-card">
         <div class="stat-icon"></div>
@@ -320,53 +425,124 @@ document.addEventListener('DOMContentLoaded', () => {
       }, 100);
     });
     planContent.innerHTML = days.map(day => `
-      <div class="day-card">
+      <div class="day-card" style="position: relative;">
+        <button class="btn-change-day" data-day="${day.day}" style="position: absolute; top: 1rem; right: 1rem; font-size: 0.8rem; padding: 0.3rem 0.6rem; border-radius: 4px; background: var(--bg-card); color: var(--text-main); border: 1px solid var(--border-color); cursor: pointer;">Cambiar día</button>
         <h3>
           <span>${day.emoji} ${day.day}</span>
           <span class="day-price">€${day.dailyCost.toFixed(2)} · ${day.dailyCalories} kcal</span>
         </h3>
         <div class="meal-item">
-          <div><span class="meal-icon">${MEAL_ICONS.desayuno}</span><strong>Desayuno:</strong> ${day.breakfast.name}</div>
-          <div class="meal-calories">${day.breakfast.kcal} kcal</div>
+          <div><span class="meal-icon">${MEAL_ICONS.desayuno}</span><strong>Desayuno:</strong> ${day.breakfast.nombre}</div>
+          <div class="meal-calories">${day.breakfast.kcal} kcal · €${day.breakfast.totalCost.toFixed(2)}</div>
         </div>
         <div class="meal-item">
-          <div><span class="meal-icon">${MEAL_ICONS.almuerzo}</span><strong>Almuerzo:</strong> ${day.lunch.name}</div>
-          <div class="meal-calories">${day.lunch.kcal} kcal</div>
+          <div><span class="meal-icon">${MEAL_ICONS.almuerzo}</span><strong>Almuerzo:</strong> ${day.lunch.nombre}</div>
+          <div class="meal-calories">${day.lunch.kcal} kcal · €${day.lunch.totalCost.toFixed(2)}</div>
         </div>
         <div class="meal-item">
-          <div><span class="meal-icon">${MEAL_ICONS.cena}</span><strong>Cena:</strong> ${day.dinner.name}</div>
-          <div class="meal-calories">${day.dinner.kcal} kcal</div>
+          <div><span class="meal-icon">${MEAL_ICONS.cena}</span><strong>Cena:</strong> ${day.dinner.nombre}</div>
+          <div class="meal-calories">${day.dinner.kcal} kcal · €${day.dinner.totalCost.toFixed(2)}</div>
         </div>
       </div>
     `).join('');
-    const ingredients = new Map();
+    
+    // Construir la lista de la compra parseando el string de ingredientes
+    const ingredientsCount = {};
+    let totalShoppingCost = 0;
+    
     days.forEach(day => {
       [day.breakfast, day.lunch, day.dinner].forEach(meal => {
-        meal.foods.forEach(f => {
-          if (!ingredients.has(f.id)) {
-            ingredients.set(f.id, { ...f, qty: 1 });
-          } else {
-            ingredients.get(f.id).qty++;
-          }
-        });
+        // If the backend didn't include an `ingredientes` field, try to extract from the name
+        const ingrStr = meal.ingredientes || extractIngredientsFromName(meal.nombre || meal.Nombre || '');
+        if (ingrStr) {
+           ingrStr.split(',').forEach(ing => {
+               const name = ing.trim();
+               if (!name) return;
+               ingredientsCount[name] = (ingredientsCount[name] || 0) + 1;
+           });
+        }
       });
     });
 
-    const sortedIngredients = [...ingredients.values()].sort((a,b) => a.category.localeCompare(b.category));
-    const totalShoppingCost = sortedIngredients.reduce((s,f) => s + f.price, 0);
+    const uniqueIngredients = Object.keys(ingredientsCount).sort();
 
     shoppingContent.innerHTML = `
       <div class="day-card" style="margin-bottom:1rem">
-        <h3>Lista de la compra — ${sortedIngredients.length} productos · ~€${totalShoppingCost.toFixed(2)}</h3>
+        <h3>Lista de la compra — ${uniqueIngredients.length} ingredientes diferentes</h3>
+        <p style="color:var(--text-muted);font-size:0.9rem;margin-top:0.5rem">Coste total estimado (API): €${totalCost.toFixed(2)}</p>
       </div>
       <div class="shopping-grid">
-        ${sortedIngredients.map(item => `
+        ${uniqueIngredients.map(item => `
           <div class="shopping-item">
             <span class="item-dot"></span>
-            <span>${item.name} <small style="color:var(--text-muted)">(${item.unit})</small></span>
+            <span>${item} <small style="color:var(--text-muted)">(x${ingredientsCount[item] * profile.people})</small></span>
           </div>
         `).join('')}
       </div>
     `;
+
+    document.querySelectorAll('.btn-change-day').forEach(btn => {
+      btn.addEventListener('click', async e => {
+        const dayToChange = e.target.dataset.day;
+        const dayIndex = DAYS.indexOf(dayToChange);
+        if (dayIndex === -1) return;
+
+        // fetch a random MenuDiario from backend, respecting diet
+        try {
+          const esVeg = profile.dietType === 'vegetariano' || profile.dietType === 'vegano' ? 'true' : 'false';
+          const resp = await fetch(`http://localhost:5088/api/menudiario/random?esVegetariano=${esVeg}`);
+          if (!resp.ok) throw new Error('No se pudo obtener un menú alternativo');
+          const m = await resp.json();
+
+          // map API MenuDiario to our day format
+          const desayunoData = m.desayuno || m.Desayuno || {};
+          const comidaData   = m.comida || m.Comida || {};
+          const cenaData     = m.cena || m.Cena || {};
+
+          const newBreakfast = {
+            nombre: desayunoData.NombreDesayuno || desayunoData.Nombre || 'Desayuno alternativo',
+            ingredientes: extractIngredientsFromName(desayunoData.NombreDesayuno || desayunoData.Nombre || ''),
+            totalCost: (desayunoData.Precio_Desayuno || desayunoData.Precio || 0) * profile.people,
+            kcal: 300 + Math.floor(Math.random() * 150)
+          };
+
+          const newLunch = {
+            nombre: comidaData.NombreComida || comidaData.Nombre || 'Comida alternativa',
+            ingredientes: extractIngredientsFromName(comidaData.NombreComida || comidaData.Nombre || ''),
+            totalCost: (comidaData.Precio_Comida || comidaData.Precio || 0) * profile.people,
+            kcal: 600 + Math.floor(Math.random() * 250)
+          };
+
+          const newDinner = {
+            nombre: cenaData.NombreCena || cenaData.Nombre || 'Cena alternativa',
+            ingredientes: extractIngredientsFromName(cenaData.NombreCena || cenaData.Nombre || ''),
+            totalCost: (cenaData.Precio_Cena || cenaData.Precio || 0) * profile.people,
+            kcal: 400 + Math.floor(Math.random() * 200)
+          };
+
+          const newDay = {
+            day: dayToChange,
+            emoji: DAY_EMOJIS[dayIndex],
+            breakfast: newBreakfast,
+            lunch: newLunch,
+            dinner: newDinner,
+            dailyCost: newBreakfast.totalCost + newLunch.totalCost + newDinner.totalCost,
+            dailyCalories: newBreakfast.kcal + newLunch.kcal + newDinner.kcal
+          };
+
+          // replace in mealPlan and recompute totals
+          mealPlan.days[dayIndex] = newDay;
+          mealPlan.totalCost = mealPlan.days.reduce((s,d) => s + d.dailyCost, 0);
+          mealPlan.totalCalories = mealPlan.days.reduce((s,d) => s + d.dailyCalories, 0);
+          mealPlan.avgCalories = Math.round(mealPlan.totalCalories / 7);
+
+          // re-render
+          renderResults(mealPlan);
+        } catch (err) {
+          console.error('Error al cambiar día:', err);
+          alert('No se pudo obtener un menú alternativo. Intenta otra vez.');
+        }
+      });
+    });
   }
 });
