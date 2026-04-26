@@ -245,6 +245,158 @@ document.addEventListener('DOMContentLoaded', async () => {
     unlockApp();
   });
 
+  function decodeJwtPayload(token) {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(base64).split('').map(c =>
+        '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)
+      ).join('')
+    );
+    return JSON.parse(jsonPayload);
+  }
+
+  function handleGoogleSignIn(response) {
+    const payload = decodeJwtPayload(response.credential);
+    const googleEmail = payload.email;
+    const googleName = payload.given_name || payload.name || 'Usuario';
+    const googleLastName = payload.family_name || '';
+    const googlePicture = payload.picture || '';
+
+    let users = getStoredUsers();
+    let existingUser = users.find(u => u.email === googleEmail);
+
+    if (!existingUser) {
+      const googleUsername = googleEmail.split('@')[0];
+      let uniqueUsername = googleUsername;
+      let counter = 1;
+      while (users.some(u => u.username.toLowerCase() === uniqueUsername.toLowerCase())) {
+        uniqueUsername = googleUsername + counter;
+        counter++;
+      }
+
+      existingUser = {
+        name: googleName,
+        lastName1: googleLastName,
+        lastName2: '',
+        username: uniqueUsername,
+        email: googleEmail,
+        phone: '',
+        password: '',
+        googleAuth: true,
+        picture: googlePicture,
+      };
+      users.push(existingUser);
+      saveUsers(users);
+    }
+
+    setCurrentUser(existingUser.username);
+    updateUserMenu(existingUser.username);
+    showAuthMessage('');
+    unlockApp();
+  }
+
+  let googleInitialized = false;
+  function initGoogleSignIn() {
+    if (googleInitialized) return;
+    if (typeof google === 'undefined' || !google.accounts) return;
+
+    google.accounts.id.initialize({
+      client_id: GOOGLE_CLIENT_ID,
+      callback: handleGoogleSignIn,
+      auto_select: false,
+      use_fedcm_for_prompt: false,
+    });
+
+    const hiddenGoogleDiv = document.createElement('div');
+    hiddenGoogleDiv.id = 'google-hidden-btn';
+    hiddenGoogleDiv.style.position = 'fixed';
+    hiddenGoogleDiv.style.top = '-9999px';
+    hiddenGoogleDiv.style.left = '-9999px';
+    hiddenGoogleDiv.style.opacity = '0.01';
+    hiddenGoogleDiv.style.pointerEvents = 'none';
+    document.body.appendChild(hiddenGoogleDiv);
+
+    google.accounts.id.renderButton(hiddenGoogleDiv, {
+      type: 'standard',
+      theme: 'filled_black',
+      size: 'large',
+      width: 300,
+    });
+
+    googleInitialized = true;
+  }
+
+  function triggerGoogleSignIn() {
+    if (typeof google === 'undefined' || !google.accounts) {
+      showAuthMessage('Google Sign-In no se ha cargado. Recarga la página.', true);
+      return;
+    }
+
+    initGoogleSignIn();
+
+    const hiddenDiv = document.getElementById('google-hidden-btn');
+    if (hiddenDiv) {
+      const googleIframe = hiddenDiv.querySelector('iframe');
+      if (googleIframe) {
+        hiddenDiv.style.position = 'fixed';
+        hiddenDiv.style.top = '50%';
+        hiddenDiv.style.left = '50%';
+        hiddenDiv.style.transform = 'translate(-50%, -50%)';
+        hiddenDiv.style.opacity = '1';
+        hiddenDiv.style.pointerEvents = 'auto';
+        hiddenDiv.style.zIndex = '10000';
+        hiddenDiv.style.background = 'var(--bg-card-solid)';
+        hiddenDiv.style.padding = '2rem';
+        hiddenDiv.style.borderRadius = '1rem';
+        hiddenDiv.style.border = '1px solid var(--glass-border)';
+        hiddenDiv.style.boxShadow = '0 20px 60px rgba(0,0,0,0.5)';
+
+        const overlay = document.createElement('div');
+        overlay.id = 'google-overlay';
+        overlay.style.position = 'fixed';
+        overlay.style.inset = '0';
+        overlay.style.background = 'rgba(0,0,0,0.6)';
+        overlay.style.zIndex = '9999';
+        document.body.appendChild(overlay);
+
+        overlay.addEventListener('click', () => {
+          hiddenDiv.style.position = 'fixed';
+          hiddenDiv.style.top = '-9999px';
+          hiddenDiv.style.left = '-9999px';
+          hiddenDiv.style.opacity = '0.01';
+          hiddenDiv.style.pointerEvents = 'none';
+          hiddenDiv.style.zIndex = '';
+          hiddenDiv.style.background = '';
+          hiddenDiv.style.padding = '';
+          hiddenDiv.style.borderRadius = '';
+          hiddenDiv.style.border = '';
+          hiddenDiv.style.boxShadow = '';
+          hiddenDiv.style.transform = '';
+          overlay.remove();
+        });
+
+        return;
+      }
+    }
+
+    showAuthMessage('Error cargando Google Sign-In. Recarga la página.', true);
+  }
+
+  const btnGoogleLogin = $('btn-google-login');
+  const btnGoogleRegister = $('btn-google-register');
+  if (btnGoogleLogin) btnGoogleLogin.addEventListener('click', triggerGoogleSignIn);
+  if (btnGoogleRegister) btnGoogleRegister.addEventListener('click', triggerGoogleSignIn);
+
+  function waitForGoogleAndInit() {
+    if (typeof google !== 'undefined' && google.accounts) {
+      initGoogleSignIn();
+    } else {
+      setTimeout(waitForGoogleAndInit, 200);
+    }
+  }
+  waitForGoogleAndInit();
+
   switchAuthView('login');
   const currentUser = getCurrentUser();
   if (currentUser) { updateUserMenu(currentUser); unlockApp(); }
