@@ -99,23 +99,87 @@ function getTotalWeeklyBudget(profile) {
   return (Number(profile.weeklyBudget) || 0) * (Number(profile.people) || 1);
 }
 
-function getMealCalories(type) {
-  const ranges = {
-    desayuno: [300, 150],
-    comida: [600, 250],
-    cena: [400, 200],
+function getMealTokens(recipe, type = '') {
+  const rawText = [
+    getRecipeName(recipe, type),
+    recipe?.nombre,
+    recipe?.Nombre,
+    recipe?.ingredientes,
+    recipe?.Ingredientes,
+  ].filter(Boolean).join(', ');
+
+  return rawText
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean);
+}
+
+function estimateMealCalories(recipe, type) {
+  const baseByType = {
+    desayuno: 180,
+    comida: 260,
+    cena: 220,
   };
-  const [base, variance] = ranges[type] || [400, 200];
-  return base + Math.floor(Math.random() * variance);
+
+  const caloriesByToken = {
+    aceite: 120,
+    aguacate: 110,
+    arroz: 210,
+    atun: 140,
+    avena: 150,
+    barquillos: 160,
+    bizcocho: 250,
+    boniato: 90,
+    cafe: 5,
+    carne: 220,
+    cereales: 170,
+    cerdo: 230,
+    chocolate: 120,
+    croissant: 240,
+    ensalada: 80,
+    ensaimada: 270,
+    fruta: 70,
+    galletas: 180,
+    garbanzos: 190,
+    huevo: 155,
+    jamon: 110,
+    kiwi: 45,
+    leche: 90,
+    lentejas: 180,
+    manzana: 52,
+    mantequilla: 100,
+    merluza: 130,
+    mortadela: 140,
+    napolitana: 260,
+    naranja: 60,
+    pan: 160,
+    pasta: 220,
+    patata: 130,
+    pavo: 135,
+    platano: 95,
+    pollo: 200,
+    queso: 115,
+    salmon: 210,
+    tomate: 25,
+    tostadas: 140,
+    yogur: 95,
+    zumo: 85,
+  };
+
+  const tokens = Array.from(new Set(getMealTokens(recipe, type)));
+  const matchedCalories = tokens.reduce((sum, token) => sum + (caloriesByToken[token] || 0), 0);
+  return baseByType[type] + matchedCalories;
 }
 
 function buildDayPlan(day, dayIndex, breakfast, lunch, dinner, people) {
   const bCost = getRecipePrice(breakfast, 'desayuno') * people;
   const lCost = getRecipePrice(lunch, 'comida') * people;
   const dCost = getRecipePrice(dinner, 'cena') * people;
-  const bKcal = getMealCalories('desayuno');
-  const lKcal = getMealCalories('comida');
-  const dKcal = getMealCalories('cena');
+  const bKcal = estimateMealCalories(breakfast, 'desayuno');
+  const lKcal = estimateMealCalories(lunch, 'comida');
+  const dKcal = estimateMealCalories(dinner, 'cena');
 
   return {
     day, emoji: DAY_EMOJIS[dayIndex],
@@ -127,7 +191,22 @@ function buildDayPlan(day, dayIndex, breakfast, lunch, dinner, people) {
   };
 }
 
-function pickAffordableDay(desayunos, almuerzos, cenas, dailyBudgetPerPerson) {
+function getComboCostPerPerson(combo) {
+  return (
+    getRecipePrice(combo.breakfast, 'desayuno') +
+    getRecipePrice(combo.lunch, 'comida') +
+    getRecipePrice(combo.dinner, 'cena')
+  );
+}
+
+function getRecipeId(recipe, type) {
+  if (!recipe) return '';
+  const explicitId = recipe.id ?? recipe.Id ?? recipe.IdDesayuno ?? recipe.IdComida ?? recipe.IdCena;
+  return `${type}:${explicitId ?? getRecipeName(recipe, type)}`;
+}
+
+function pickAffordableDay(desayunos, almuerzos, cenas, dailyBudgetPerPerson, options = {}) {
+  const usedRecipeIds = options.usedRecipeIds || new Set();
   const fallback = {
     breakfast: { nombre: 'Desayuno genérico', ingredientes: 'Pan, Aceite', precioTotal: 1.5 },
     lunch: { nombre: 'Comida genérica', ingredientes: 'Arroz, Pollo', precioTotal: 3.5 },
@@ -137,32 +216,69 @@ function pickAffordableDay(desayunos, almuerzos, cenas, dailyBudgetPerPerson) {
   const breakfastPool = shuffle(desayunos.length ? desayunos : RECETAS.desayuno);
   const lunchPool = shuffle(almuerzos.length ? almuerzos : RECETAS.almuerzo);
   const dinnerPool = shuffle(cenas.length ? cenas : RECETAS.cena);
+  const prioritizedBreakfastPool = breakfastPool.filter(recipe => !usedRecipeIds.has(getRecipeId(recipe, 'desayuno')));
+  const prioritizedLunchPool = lunchPool.filter(recipe => !usedRecipeIds.has(getRecipeId(recipe, 'comida')));
+  const prioritizedDinnerPool = dinnerPool.filter(recipe => !usedRecipeIds.has(getRecipeId(recipe, 'cena')));
+  const activeBreakfastPool = prioritizedBreakfastPool.length ? prioritizedBreakfastPool : breakfastPool;
+  const activeLunchPool = prioritizedLunchPool.length ? prioritizedLunchPool : lunchPool;
+  const activeDinnerPool = prioritizedDinnerPool.length ? prioritizedDinnerPool : dinnerPool;
 
   const cheapest = {
-    breakfast: [...breakfastPool].sort((a, b) => getRecipePrice(a, 'desayuno') - getRecipePrice(b, 'desayuno'))[0] || fallback.breakfast,
-    lunch: [...lunchPool].sort((a, b) => getRecipePrice(a, 'comida') - getRecipePrice(b, 'comida'))[0] || fallback.lunch,
-    dinner: [...dinnerPool].sort((a, b) => getRecipePrice(a, 'cena') - getRecipePrice(b, 'cena'))[0] || fallback.dinner,
+    breakfast: [...activeBreakfastPool].sort((a, b) => getRecipePrice(a, 'desayuno') - getRecipePrice(b, 'desayuno'))[0] || fallback.breakfast,
+    lunch: [...activeLunchPool].sort((a, b) => getRecipePrice(a, 'comida') - getRecipePrice(b, 'comida'))[0] || fallback.lunch,
+    dinner: [...activeDinnerPool].sort((a, b) => getRecipePrice(a, 'cena') - getRecipePrice(b, 'cena'))[0] || fallback.dinner,
   };
 
-  let best = cheapest;
-  const bestCost = combo =>
-    getRecipePrice(combo.breakfast, 'desayuno') +
-    getRecipePrice(combo.lunch, 'comida') +
-    getRecipePrice(combo.dinner, 'cena');
+  let bestUnderBudget = null;
+  let bestOverall = cheapest;
 
-  for (let i = 0; i < 500; i++) {
+  const scoreCombo = combo => {
+    const cost = getComboCostPerPerson(combo);
+    const repetitionPenalty = [
+      getRecipeId(combo.breakfast, 'desayuno'),
+      getRecipeId(combo.lunch, 'comida'),
+      getRecipeId(combo.dinner, 'cena'),
+    ].reduce((penalty, id) => penalty + (usedRecipeIds.has(id) ? 1 : 0), 0);
+
+    return {
+      cost,
+      repetitionPenalty,
+      distanceToBudget: Math.abs(dailyBudgetPerPerson - cost),
+    };
+  };
+
+  for (let i = 0; i < 800; i++) {
     const combo = {
-      breakfast: breakfastPool[i % breakfastPool.length] || cheapest.breakfast,
-      lunch: lunchPool[(i * 7) % lunchPool.length] || cheapest.lunch,
-      dinner: dinnerPool[(i * 13) % dinnerPool.length] || cheapest.dinner,
+      breakfast: activeBreakfastPool[i % activeBreakfastPool.length] || cheapest.breakfast,
+      lunch: activeLunchPool[(i * 7) % activeLunchPool.length] || cheapest.lunch,
+      dinner: activeDinnerPool[(i * 13) % activeDinnerPool.length] || cheapest.dinner,
     };
 
-    const cost = bestCost(combo);
-    if (cost <= dailyBudgetPerPerson) return combo;
-    if (cost < bestCost(best)) best = combo;
+    const current = scoreCombo(combo);
+    const currentBestUnder = bestUnderBudget ? scoreCombo(bestUnderBudget) : null;
+    const currentBestOverall = scoreCombo(bestOverall);
+
+    if (current.cost <= dailyBudgetPerPerson) {
+      if (
+        !bestUnderBudget ||
+        current.repetitionPenalty < currentBestUnder.repetitionPenalty ||
+        (current.repetitionPenalty === currentBestUnder.repetitionPenalty &&
+          current.distanceToBudget < currentBestUnder.distanceToBudget)
+      ) {
+        bestUnderBudget = combo;
+      }
+    }
+
+    if (
+      current.cost < currentBestOverall.cost ||
+      (current.cost === currentBestOverall.cost &&
+        current.repetitionPenalty < currentBestOverall.repetitionPenalty)
+    ) {
+      bestOverall = combo;
+    }
   }
 
-  return best;
+  return bestUnderBudget || bestOverall;
 }
 
 function summarizeMealPlan(days) {
@@ -176,11 +292,33 @@ function generateWeeklyMealPlan(profile) {
   const desayunos = filterRecipes(RECETAS.desayuno, profile);
   const almuerzos = filterRecipes(RECETAS.almuerzo, profile);
   const cenas     = filterRecipes(RECETAS.cena, profile);
-  const dailyBudgetPerPerson = (Number(profile.weeklyBudget) || 0) / 7;
+  const totalWeeklyBudget = getTotalWeeklyBudget(profile);
+  let remainingBudget = totalWeeklyBudget;
+  const usedRecipeIds = new Set();
 
   const days = DAYS.map((day, i) => {
-    const { breakfast, lunch, dinner } = pickAffordableDay(desayunos, almuerzos, cenas, dailyBudgetPerPerson);
-    return buildDayPlan(day, i, breakfast, lunch, dinner, profile.people);
+    const remainingDays = DAYS.length - i;
+    const targetDailyBudgetTotal = remainingDays > 0 ? (remainingBudget / remainingDays) : remainingBudget;
+    const targetDailyBudgetPerPerson = profile.people > 0
+      ? (targetDailyBudgetTotal / profile.people)
+      : targetDailyBudgetTotal;
+
+    const { breakfast, lunch, dinner } = pickAffordableDay(
+      desayunos,
+      almuerzos,
+      cenas,
+      targetDailyBudgetPerPerson,
+      { usedRecipeIds }
+    );
+
+    const dayPlan = buildDayPlan(day, i, breakfast, lunch, dinner, profile.people);
+    remainingBudget = Math.max(remainingBudget - dayPlan.dailyCost, 0);
+
+    usedRecipeIds.add(getRecipeId(breakfast, 'desayuno'));
+    usedRecipeIds.add(getRecipeId(lunch, 'comida'));
+    usedRecipeIds.add(getRecipeId(dinner, 'cena'));
+
+    return dayPlan;
   });
 
   const { totalCost, totalCalories, avgCalories } = summarizeMealPlan(days);
@@ -602,7 +740,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       <div class="stat-card">
         <div class="stat-icon"></div>
         <div class="stat-value">${avgCalories}</div>
-        <div class="stat-label">kcal / día</div>
+        <div class="stat-label">kcal est. / día</div>
       </div>
       <div class="stat-card">
         <div class="stat-icon"></div>
@@ -631,21 +769,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         <div class="day-card-header">
           <h3>
             <span>${day.emoji} ${day.day}</span>
-            <span class="day-price">€${day.dailyCost.toFixed(2)} · ${day.dailyCalories} kcal</span>
+            <span class="day-price">€${day.dailyCost.toFixed(2)} · ${day.dailyCalories} kcal est.</span>
           </h3>
           <button class="btn-change-day" data-day="${day.day}">Cambiar día</button>
         </div>
         <div class="meal-item">
           <div><span class="meal-icon">${MEAL_ICONS.desayuno}</span><strong>Desayuno:</strong> ${day.breakfast.nombre}</div>
-          <div class="meal-calories">${day.breakfast.kcal} kcal · €${day.breakfast.totalCost.toFixed(2)}</div>
+          <div class="meal-calories">${day.breakfast.kcal} kcal est. · €${day.breakfast.totalCost.toFixed(2)}</div>
         </div>
         <div class="meal-item">
           <div><span class="meal-icon">${MEAL_ICONS.almuerzo}</span><strong>Almuerzo:</strong> ${day.lunch.nombre}</div>
-          <div class="meal-calories">${day.lunch.kcal} kcal · €${day.lunch.totalCost.toFixed(2)}</div>
+          <div class="meal-calories">${day.lunch.kcal} kcal est. · €${day.lunch.totalCost.toFixed(2)}</div>
         </div>
         <div class="meal-item">
           <div><span class="meal-icon">${MEAL_ICONS.cena}</span><strong>Cena:</strong> ${day.dinner.nombre}</div>
-          <div class="meal-calories">${day.dinner.kcal} kcal · €${day.dinner.totalCost.toFixed(2)}</div>
+          <div class="meal-calories">${day.dinner.kcal} kcal est. · €${day.dinner.totalCost.toFixed(2)}</div>
         </div>
       </div>
     `).join('');
@@ -698,7 +836,18 @@ document.addEventListener('DOMContentLoaded', async () => {
           filterRecipes(RECETAS.desayuno, profile),
           filterRecipes(RECETAS.almuerzo, profile),
           filterRecipes(RECETAS.cena, profile),
-          dailyBudgetPerPerson
+          dailyBudgetPerPerson,
+          {
+            usedRecipeIds: new Set(
+              mealPlan.days
+                .filter((_, index) => index !== dayIndex)
+                .flatMap(existingDay => ([
+                  getRecipeId(existingDay.breakfast, 'desayuno'),
+                  getRecipeId(existingDay.lunch, 'comida'),
+                  getRecipeId(existingDay.dinner, 'cena'),
+                ]))
+            )
+          }
         );
 
         mealPlan.days[dayIndex] = buildDayPlan(dayToChange, dayIndex, breakfast, lunch, dinner, profile.people);
