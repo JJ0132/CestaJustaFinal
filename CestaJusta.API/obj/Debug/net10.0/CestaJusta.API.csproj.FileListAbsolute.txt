@@ -23,9 +23,7 @@ C:\Users\JAYGEN\Desktop\CestaJusta\CestaJustaFinal2\CestaJustaFinal\CestaJusta.A
 C:\Users\JAYGEN\Desktop\CestaJusta\CestaJustaFinal2\CestaJustaFinal\CestaJusta.API\bin\Debug\net10.0\Microsoft.Extensions.DependencyModel.dll
 C:\Users\JAYGEN\Desktop\CestaJusta\CestaJustaFinal2\CestaJustaFinal\CestaJusta.API\bin\Debug\net10.0\Microsoft.VisualStudio.SolutionPersistence.dll
 C:\Users\JAYGEN\Desktop\CestaJusta\CestaJustaFinal2\CestaJustaFinal\CestaJusta.API\bin\Debug\net10.0\Mono.TextTemplating.dll
-C:\Users\JAYGEN\Desktop\CestaJusta\CestaJustaFinal2\CestaJustaFinal\CestaJusta.API\bin\Debug\net10.0\MySqlConnector.dll
 C:\Users\JAYGEN\Desktop\CestaJusta\CestaJustaFinal2\CestaJustaFinal\CestaJusta.API\bin\Debug\net10.0\Newtonsoft.Json.dll
-C:\Users\JAYGEN\Desktop\CestaJusta\CestaJustaFinal2\CestaJustaFinal\CestaJusta.API\bin\Debug\net10.0\Pomelo.EntityFrameworkCore.MySql.dll
 C:\Users\JAYGEN\Desktop\CestaJusta\CestaJustaFinal2\CestaJustaFinal\CestaJusta.API\bin\Debug\net10.0\SQLitePCLRaw.batteries_v2.dll
 C:\Users\JAYGEN\Desktop\CestaJusta\CestaJustaFinal2\CestaJustaFinal\CestaJusta.API\bin\Debug\net10.0\SQLitePCLRaw.core.dll
 C:\Users\JAYGEN\Desktop\CestaJusta\CestaJustaFinal2\CestaJustaFinal\CestaJusta.API\bin\Debug\net10.0\SQLitePCLRaw.provider.e_sqlite3.dll
@@ -146,3 +144,11 @@ C:\Users\JAYGEN\Desktop\CestaJusta\CestaJustaFinal2\CestaJustaFinal\CestaJusta.A
 C:\Users\JAYGEN\Desktop\CestaJusta\CestaJustaFinal2\CestaJustaFinal\CestaJusta.API\obj\Debug\net10.0\CestaJusta.API.pdb
 C:\Users\JAYGEN\Desktop\CestaJusta\CestaJustaFinal2\CestaJustaFinal\CestaJusta.API\obj\Debug\net10.0\CestaJusta.API.genruntimeconfig.cache
 C:\Users\JAYGEN\Desktop\CestaJusta\CestaJustaFinal2\CestaJustaFinal\CestaJusta.API\obj\Debug\net10.0\ref\CestaJusta.API.dll
+C:\Users\JAYGEN\AppData\Local\Temp\cestajusta-build-check\appsettings.Development.json
+C:\Users\JAYGEN\AppData\Local\Temp\cestajusta-build-check\appsettings.json
+C:\Users\JAYGEN\AppData\Local\Temp\cestajusta-build-check\CestaJusta.API.staticwebassets.endpoints.json
+C:\Users\JAYGEN\AppData\Local\Temp\cestajusta-build-check\CestaJusta.API.exe
+C:\Users\JAYGEN\AppData\Local\Temp\cestajusta-build-check\CestaJusta.API.deps.json
+C:\Users\JAYGEN\AppData\Local\Temp\cestajusta-build-check\CestaJusta.API.runtimeconfig.json
+C:\Users\JAYGEN\AppData\Local\Temp\cestajusta-build-check\CestaJusta.API.dll
+C:\Users\JAYGEN\AppData\Local\Temp\cestajusta-build-check\CestaJusta.API.pdb

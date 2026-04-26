@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="CestaJusta — Planifica tus comidas semanales saludables ajustadas a tu presupuesto. Recetas variadas, lista de compras automática y seguimiento de gastos." />
-  <title>CestaJusta — Tu Menú Semanal Inteligente</title>
+  <meta name="description" content="CestaJusta: planifica tus comidas semanales saludables ajustadas a tu presupuesto. Recetas variadas, lista de la compra automática y seguimiento de gastos." />
+  <title>CestaJusta: tu menú semanal inteligente</title>
   <link rel="stylesheet" href="styles.css" />
   <link rel="icon" type="image/jpeg" href="./Logo/CestaJusta.jpg" />
   <script src="https://accounts.google.com/gsi/client" async defer></script>
@@ -126,17 +126,17 @@
     </section>
 <section id="app-shell" class="hidden">
 <section id="preferences-section" class="card">
-      <h2>Configura tu Plan</h2>
+      <h2>Configura tu plan</h2>
       <form id="preferences-form">
         
         <div class="form-group">
-          <label for="budget">Presupuesto Semanal: <span style="color:var(--accent-1);font-weight:800">€<span id="budget-value">50</span></span></label>
+          <label for="budget">Presupuesto semanal: <span style="color:var(--accent-1);font-weight:800">€<span id="budget-value">50</span></span></label>
           <input type="range" id="budget" min="20" max="200" step="5" value="50">
           <div class="range-labels"><span>€20</span><span>€200</span></div>
         </div>
 
         <div class="form-group">
-          <label>Número de Personas</label>
+          <label>Número de personas</label>
           <div class="button-group" id="people-group">
             <button type="button" class="toggle-btn active" data-val="1">1</button>
             <button type="button" class="toggle-btn" data-val="2">2</button>
@@ -146,7 +146,7 @@
         </div>
 
         <div class="form-group">
-          <label for="diet-type">Tipo de Dieta</label>
+          <label for="diet-type">Tipo de dieta</label>
           <select id="diet-type">
             <option value="omnivoro">Omnívoro</option>
             <option value="vegetariano">Vegetariano</option>
@@ -156,28 +156,30 @@
 
 
 
-        <button type="submit" class="btn-primary">Generar Plan Semanal</button>
+        <button type="submit" class="btn-primary">Generar plan semanal</button>
       </form>
     </section>
 <section id="results-section" class="hidden">
       <div class="card">
         <div class="results-header">
           <div>
-            <h2>Tu Plan Semanal</h2>
+            <h2>Tu plan semanal</h2>
             <p id="summary-text"></p>
           </div>
-          <button id="btn-reset" class="btn-secondary">Nueva Configuración</button>
+          <button id="btn-reset" class="btn-secondary">Nueva configuración</button>
         </div>
 <div id="stats-grid" class="stats-grid"></div>
 <div id="budget-bar-container" class="budget-bar-container"></div>
 
         <div class="tabs">
-          <button class="tab-btn active" data-target="plan-content">Plan de Comidas</button>
-          <button class="tab-btn" data-target="shopping-content">Lista de Compras</button>
+          <button class="tab-btn active" data-target="plan-content">Plan de comidas</button>
+          <button class="tab-btn" data-target="shopping-content">Lista de la compra</button>
+          <button class="tab-btn" data-target="tracking-content">Seguimiento</button>
         </div>
 
         <div id="plan-content" class="tab-content active"></div>
         <div id="shopping-content" class="tab-content hidden"></div>
+        <div id="tracking-content" class="tab-content hidden"></div>
       </div>
     </section>
 
@@ -185,7 +187,7 @@
   </main>
 
   <footer>
-    <p>CestaJusta © 2026 — Come bien, gasta justo. Hecho con amor</p>
+    <p>CestaJusta © 2026: come bien, gasta justo. Hecho con amor.</p>
   </footer>
 
   <script src="app.js"></script>

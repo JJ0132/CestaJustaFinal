@@ -40,6 +40,38 @@ using (var scope = app.Services.CreateScope())
 {
     var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     context.Database.EnsureCreated();
+    context.Database.ExecuteSqlRaw("""
+        CREATE TABLE IF NOT EXISTS "Usuario" (
+            "Email" TEXT NOT NULL PRIMARY KEY,
+            "Nombre" TEXT NOT NULL,
+            "Apellido1" TEXT NOT NULL,
+            "Apellido2" TEXT NULL,
+            "NombreUsuario" TEXT NOT NULL,
+            "ContrasenaHash" TEXT NOT NULL,
+            "Telefono" TEXT NULL,
+            "Fecha_Creacion" TEXT NOT NULL,
+            "Premium" INTEGER NOT NULL DEFAULT 0
+        );
+        """);
+    context.Database.ExecuteSqlRaw("""
+        CREATE UNIQUE INDEX IF NOT EXISTS "IX_Usuario_NombreUsuario"
+        ON "Usuario" ("NombreUsuario");
+        """);
+    context.Database.ExecuteSqlRaw("""
+        CREATE TABLE IF NOT EXISTS "Tracking" (
+            "Id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+            "UsuarioEmail" TEXT NOT NULL,
+            "Fecha" TEXT NOT NULL,
+            "GastoDiario" REAL NOT NULL,
+            "GastoSemanal" REAL NOT NULL,
+            "GastoMensual" REAL NOT NULL,
+            "MenuDiarioId" INTEGER NULL,
+            "MenuSemanalId" INTEGER NULL,
+            CONSTRAINT "FK_Tracking_Usuario_UsuarioEmail"
+                FOREIGN KEY ("UsuarioEmail") REFERENCES "Usuario" ("Email")
+                ON DELETE CASCADE
+        );
+        """);
 
     var dbFolderPath = Path.Combine(Directory.GetParent(builder.Environment.ContentRootPath)!.FullName, "DB");
 
@@ -116,116 +148,6 @@ using (var scope = app.Services.CreateScope())
         }
     }
 
-    // 5. Seed Recetas_Ingredientes (heurística)
-    if (!context.RecetasIngredientes.Any() && context.Ingredientes.Any())
-    {
-        var allIngredients = context.Ingredientes.ToList();
-
-        // helper to match ingredients by name tokens
-        List<int> FindMatchingIngredientIds(string recipeName)
-        {
-            var tokens = (recipeName ?? string.Empty).ToLower().Split(new char[] {',',' ','-','/'}, StringSplitOptions.RemoveEmptyEntries).Select(t => t.Trim()).Where(t => t.Length>2).ToList();
-            var matches = new List<int>();
-            foreach (var ing in allIngredients)
-            {
-                var n = ing.Nombre.ToLower();
-                foreach (var tk in tokens)
-                {
-                    if (n.Contains(tk)) { matches.Add(ing.Id); break; }
-                }
-            }
-            return matches.Distinct().ToList();
-        }
-
-        // Map desayunos
-        foreach(var r in context.RecetasDesayuno.ToList())
-        {
-            var matched = FindMatchingIngredientIds(r.Nombre);
-            foreach(var id in matched) context.RecetasIngredientes.Add(new RecetaIngrediente { RecetaTipo = "desayuno", RecetaId = r.Id, IngredienteId = id, Cantidad = 1 });
-        }
-
-        // Map comidas
-        foreach(var r in context.RecetasComida.ToList())
-        {
-            var matched = FindMatchingIngredientIds(r.Nombre);
-            foreach(var id in matched) context.RecetasIngredientes.Add(new RecetaIngrediente { RecetaTipo = "comida", RecetaId = r.Id, IngredienteId = id, Cantidad = 1 });
-        }
-
-        // Map cenas
-        foreach(var r in context.RecetasCena.ToList())
-        {
-            var matched = FindMatchingIngredientIds(r.Nombre);
-            foreach(var id in matched) context.RecetasIngredientes.Add(new RecetaIngrediente { RecetaTipo = "cena", RecetaId = r.Id, IngredienteId = id, Cantidad = 1 });
-        }
-
-        context.SaveChanges();
-    }
-
-    // 6. Seed Menu_Diario (Random Generation)
-    if (!context.MenuDiarios.Any() && context.RecetasDesayuno.Any() && context.RecetasComida.Any() && context.RecetasCena.Any())
-    {
-        var desayunos = context.RecetasDesayuno.ToList();
-        var comidas = context.RecetasComida.ToList();
-        var cenas = context.RecetasCena.ToList();
-        
-        var rnd = new Random();
-        var menusGenerados = new List<MenuDiario>();
-
-        // Generar 100 menús aleatorios
-        for (int i = 0; i < 100; i++)
-        {
-            var desayuno = desayunos[rnd.Next(desayunos.Count)];
-            var comida = comidas[rnd.Next(comidas.Count)];
-            var cena = cenas[rnd.Next(cenas.Count)];
-
-            menusGenerados.Add(new MenuDiario
-            {
-                DesayunoId = desayuno.Id,
-                ComidaId = comida.Id,
-                CenaId = cena.Id,
-                PrecioTotalDia = desayuno.Precio + comida.Precio + cena.Precio,
-                EsVegetariano = desayuno.EsVegetariano && comida.EsVegetariano && cena.EsVegetariano
-            });
-        }
-        
-        context.MenuDiarios.AddRange(menusGenerados);
-        context.SaveChanges();
-    }
-
-    // 7. Seed Menu_Semanal (Random Generation)
-    if (!context.MenuSemanales.Any() && context.MenuDiarios.Any())
-    {
-        var menusDiarios = context.MenuDiarios.ToList();
-        var rnd = new Random();
-        var semanasGeneradas = new List<MenuSemanal>();
-
-        for (int i = 0; i < 20; i++) // Generar 20 menús semanales
-        {
-            var l = menusDiarios[rnd.Next(menusDiarios.Count)];
-            var m = menusDiarios[rnd.Next(menusDiarios.Count)];
-            var x = menusDiarios[rnd.Next(menusDiarios.Count)];
-            var j = menusDiarios[rnd.Next(menusDiarios.Count)];
-            var v = menusDiarios[rnd.Next(menusDiarios.Count)];
-            var s = menusDiarios[rnd.Next(menusDiarios.Count)];
-            var d = menusDiarios[rnd.Next(menusDiarios.Count)];
-
-            semanasGeneradas.Add(new MenuSemanal
-            {
-                LunesId = l.Id,
-                MartesId = m.Id,
-                MiercolesId = x.Id,
-                JuevesId = j.Id,
-                ViernesId = v.Id,
-                SabadoId = s.Id,
-                DomingoId = d.Id,
-                PrecioSemana = l.PrecioTotalDia + m.PrecioTotalDia + x.PrecioTotalDia + j.PrecioTotalDia + v.PrecioTotalDia + s.PrecioTotalDia + d.PrecioTotalDia,
-                EsVegetariano = l.EsVegetariano && m.EsVegetariano && x.EsVegetariano && j.EsVegetariano && v.EsVegetariano && s.EsVegetariano && d.EsVegetariano
-            });
-        }
-        
-        context.MenuSemanales.AddRange(semanasGeneradas);
-        context.SaveChanges();
-    }
 }
 
 app.Run();

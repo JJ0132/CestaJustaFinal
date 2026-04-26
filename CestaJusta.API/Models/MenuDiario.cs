@@ -26,12 +26,12 @@ namespace CestaJusta.API.Models
 
         // Propiedades de navegación (Relaciones)
         [ForeignKey("DesayunoId")]
-        public RecetaDesayuno? Desayuno { get; set; }
+        public RecetaDesayuno Desayuno { get; set; } = null!;
 
         [ForeignKey("ComidaId")]
-        public RecetaComida? Comida { get; set; }
+        public RecetaComida Comida { get; set; } = null!;
 
         [ForeignKey("CenaId")]
-        public RecetaCena? Cena { get; set; }
+        public RecetaCena Cena { get; set; } = null!;
     }
 }

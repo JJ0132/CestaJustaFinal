@@ -18,36 +18,36 @@ namespace CestaJusta.API.Models
         [Column("ID_Menu_Lunes")]
         public int LunesId { get; set; }
         [ForeignKey("LunesId")]
-        public MenuDiario? Lunes { get; set; }
+        public MenuDiario Lunes { get; set; } = null!;
 
         [Column("ID_Menu_Martes")]
         public int MartesId { get; set; }
         [ForeignKey("MartesId")]
-        public MenuDiario? Martes { get; set; }
+        public MenuDiario Martes { get; set; } = null!;
 
         [Column("ID_Menu_Miercoles")]
         public int MiercolesId { get; set; }
         [ForeignKey("MiercolesId")]
-        public MenuDiario? Miercoles { get; set; }
+        public MenuDiario Miercoles { get; set; } = null!;
 
         [Column("ID_Menu_Jueves")]
         public int JuevesId { get; set; }
         [ForeignKey("JuevesId")]
-        public MenuDiario? Jueves { get; set; }
+        public MenuDiario Jueves { get; set; } = null!;
 
         [Column("ID_Menu_Viernes")]
         public int ViernesId { get; set; }
         [ForeignKey("ViernesId")]
-        public MenuDiario? Viernes { get; set; }
+        public MenuDiario Viernes { get; set; } = null!;
 
         [Column("ID_Menu_Sabado")]
         public int SabadoId { get; set; }
         [ForeignKey("SabadoId")]
-        public MenuDiario? Sabado { get; set; }
+        public MenuDiario Sabado { get; set; } = null!;
 
         [Column("ID_Menu_Domingo")]
         public int DomingoId { get; set; }
         [ForeignKey("DomingoId")]
-        public MenuDiario? Domingo { get; set; }
+        public MenuDiario Domingo { get; set; } = null!;
     }
 }
