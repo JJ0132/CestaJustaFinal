@@ -37,7 +37,15 @@ namespace CestaJusta.API.Controllers
             if (usuario == null) return Forbid();
             if (request.GastosDiarios.Count == 0) return BadRequest(new { message = "Debe enviarse al menos un gasto diario." });
 
-            var fechaInicio = request.FechaInicio?.Date ?? DateTime.UtcNow.Date;
+            var ultimaFecha = await _context.TrackingRegistros
+                .Where(t => t.UsuarioEmail == usuario.Email)
+                .OrderByDescending(t => t.Fecha)
+                .Select(t => (DateTime?)t.Fecha)
+                .FirstOrDefaultAsync();
+
+            var fechaInicio = ultimaFecha.HasValue 
+                ? ultimaFecha.Value.Date.AddDays(1) 
+                : (request.FechaInicio?.Date ?? DateTime.UtcNow.Date);
             var gastoSemanal = request.GastoSemanal > 0 ? request.GastoSemanal : request.GastosDiarios.Sum();
             var gastoMensual = await CalcularGastoMensual(usuario.Email, gastoSemanal);
 
@@ -141,22 +149,29 @@ namespace CestaJusta.API.Controllers
 
         private static TrackingResumenResponse BuildResumen(List<TrackingRegistro> registros)
         {
-            var diarios = registros
+            // Ordenamos por Id para asegurarnos de que al hacer Last() cogemos el intento más reciente
+            var registrosOrdenados = registros.OrderBy(r => r.Id).ToList();
+
+            var diarios = registrosOrdenados
                 .GroupBy(r => r.Fecha.Date)
                 .OrderBy(g => g.Key)
                 .Select(g => new TrackingPoint(g.Key, g.Last().GastoDiario))
                 .ToList();
 
-            var semanales = registros
+            var semanales = registrosOrdenados
                 .GroupBy(r => GetWeekStart(r.Fecha))
                 .OrderBy(g => g.Key)
-                .Select(g => new TrackingPoint(g.Key, g.Max(r => r.GastoSemanal)))
+                .Select(g => new TrackingPoint(g.Key, g.Last().GastoSemanal))
                 .ToList();
 
-            var mensuales = registros
+            var mensuales = registrosOrdenados
                 .GroupBy(r => new DateTime(r.Fecha.Year, r.Fecha.Month, 1))
                 .OrderBy(g => g.Key)
-                .Select(g => new TrackingPoint(g.Key, g.Sum(r => r.GastoDiario)))
+                // Para el mes, sumamos los diarios únicos más recientes del mes
+                .Select(g => {
+                    var gastoMesUnico = g.GroupBy(r => r.Fecha.Date).Sum(dia => dia.Last().GastoDiario);
+                    return new TrackingPoint(g.Key, gastoMesUnico);
+                })
                 .ToList();
 
             return new TrackingResumenResponse(diarios, semanales, mensuales);
