@@ -148,6 +148,9 @@ using (var scope = app.Services.CreateScope())
         }
     }
 
+    // Set Jaigeen as premium user for testing
+    context.Database.ExecuteSqlRaw(
+        "UPDATE Usuario SET Premium = 1 WHERE NombreUsuario = 'Jaigeen';");
 }
 
 app.Run();

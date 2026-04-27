@@ -2573,25 +2573,24 @@
     ]
   },
   "packageFolders": {
-    "C:\\Users\\JAYGEN\\.nuget\\packages\\": {}
+    "C:\\Users\\JJ\\.nuget\\packages\\": {}
   },
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\JAYGEN\\Desktop\\CestaJusta\\CestaJustaFinal2\\CestaJustaFinal\\CestaJusta.API\\CestaJusta.API.csproj",
+      "projectUniqueName": "C:\\Users\\JJ\\Desktop\\cestajusta\\CestaJustaFinal\\CestaJusta.API\\CestaJusta.API.csproj",
       "projectName": "CestaJusta.API",
-      "projectPath": "C:\\Users\\JAYGEN\\Desktop\\CestaJusta\\CestaJustaFinal2\\CestaJustaFinal\\CestaJusta.API\\CestaJusta.API.csproj",
-      "packagesPath": "C:\\Users\\JAYGEN\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\JAYGEN\\Desktop\\CestaJusta\\CestaJustaFinal2\\CestaJustaFinal\\CestaJusta.API\\obj\\",
+      "projectPath": "C:\\Users\\JJ\\Desktop\\cestajusta\\CestaJustaFinal\\CestaJusta.API\\CestaJusta.API.csproj",
+      "packagesPath": "C:\\Users\\JJ\\.nuget\\packages\\",
+      "outputPath": "C:\\Users\\JJ\\Desktop\\cestajusta\\CestaJustaFinal\\CestaJusta.API\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
-        "C:\\Users\\JAYGEN\\AppData\\Roaming\\NuGet\\NuGet.Config"
+        "C:\\Users\\JJ\\AppData\\Roaming\\NuGet\\NuGet.Config"
       ],
       "originalTargetFrameworks": [
         "net10.0"
       ],
       "sources": {
-        "C:\\Program Files\\dotnet\\library-packs": {},
         "https://api.nuget.org/v3/index.json": {}
       },
       "frameworks": {

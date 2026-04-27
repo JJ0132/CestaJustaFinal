@@ -495,40 +495,203 @@ document.addEventListener('DOMContentLoaded', async () => {
     planNotice.classList.add('hidden');
   }
 
-  function renderTracking(resumen) {
-    const renderBars = (items, labelFormatter) => {
-      if (!items?.length) return '<p style="color:var(--text-muted);font-size:0.9rem">Sin datos todavía.</p>';
-      const max = Math.max(...items.map(i => Number(i.gasto) || 0), 1);
-      return items.slice(-12).map(item => {
-        const gasto = Number(item.gasto) || 0;
-        const width = Math.max((gasto / max) * 100, 4);
-        return `
-          <div class="shopping-item" style="display:block">
-            <div style="display:flex;justify-content:space-between;gap:1rem;margin-bottom:0.35rem">
-              <span>${labelFormatter(item.fecha)}</span>
-              <strong>€${gasto.toFixed(2)}</strong>
-            </div>
-            <div class="budget-bar"><div class="budget-bar-fill" style="width:${width}%"></div></div>
-          </div>`;
-      }).join('');
-    };
+  let trackingChartInstance = null;
+  let trackingResumenCache = null;
 
-    const formatDay = date => new Date(date).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
-    const formatMonth = date => new Date(date).toLocaleDateString('es-ES', { month: 'short', year: 'numeric' });
+  function renderTracking(resumen) {
+    trackingResumenCache = resumen;
 
     trackingContent.innerHTML = `
-      <div class="day-card">
-        <h3>Gastos diarios</h3>
-        <div class="shopping-grid" style="margin-top:0.8rem">${renderBars(resumen.diarios, formatDay)}</div>
-      </div>
-      <div class="day-card">
-        <h3>Gastos semanales</h3>
-        <div class="shopping-grid" style="margin-top:0.8rem">${renderBars(resumen.semanales, formatDay)}</div>
-      </div>
-      <div class="day-card">
-        <h3>Gastos mensuales</h3>
-        <div class="shopping-grid" style="margin-top:0.8rem">${renderBars(resumen.mensuales, formatMonth)}</div>
+      <div class="day-card tracking-chart-card">
+        <div class="tracking-header">
+          <h3>Seguimiento de precios</h3>
+          <div class="tracking-view-selector" id="tracking-view-selector">
+            <button type="button" class="tracking-view-btn active" data-view="dia">Día</button>
+            <button type="button" class="tracking-view-btn" data-view="semana">Semana</button>
+            <button type="button" class="tracking-view-btn" data-view="mes">Mes</button>
+          </div>
+        </div>
+        <div class="tracking-summary" id="tracking-summary"></div>
+        <div class="tracking-chart-wrapper">
+          <canvas id="tracking-chart"></canvas>
+        </div>
       </div>`;
+
+    document.querySelectorAll('#tracking-view-selector .tracking-view-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('#tracking-view-selector .tracking-view-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        updateTrackingChart(btn.dataset.view);
+      });
+    });
+
+    updateTrackingChart('dia');
+  }
+
+  function updateTrackingChart(view) {
+    const resumen = trackingResumenCache;
+    if (!resumen) return;
+
+    const canvas = document.getElementById('tracking-chart');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+
+    let dataPoints, labels, labelTitle, accentColor, gradientTop, gradientBottom;
+
+    if (view === 'dia') {
+      const items = (resumen.diarios || []).slice(-14);
+      labels = items.map(i => new Date(i.fecha).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }));
+      dataPoints = items.map(i => Number(i.gasto) || 0);
+      labelTitle = 'Gasto diario (€)';
+      accentColor = 'rgba(34, 211, 238, 1)';
+      gradientTop = 'rgba(34, 211, 238, 0.35)';
+      gradientBottom = 'rgba(34, 211, 238, 0.02)';
+    } else if (view === 'semana') {
+      const items = (resumen.semanales || []).slice(-12);
+      labels = items.map(i => {
+        const d = new Date(i.fecha);
+        return 'Sem ' + d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
+      });
+      dataPoints = items.map(i => Number(i.gasto) || 0);
+      labelTitle = 'Gasto semanal (€)';
+      accentColor = 'rgba(167, 139, 250, 1)';
+      gradientTop = 'rgba(167, 139, 250, 0.35)';
+      gradientBottom = 'rgba(167, 139, 250, 0.02)';
+    } else {
+      const items = (resumen.mensuales || []).slice(-6);
+      labels = items.map(i => new Date(i.fecha).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' }));
+      dataPoints = items.map(i => Number(i.gasto) || 0);
+      labelTitle = 'Gasto mensual (€)';
+      accentColor = 'rgba(52, 211, 153, 1)';
+      gradientTop = 'rgba(52, 211, 153, 0.35)';
+      gradientBottom = 'rgba(52, 211, 153, 0.02)';
+    }
+
+    const summaryEl = document.getElementById('tracking-summary');
+    if (summaryEl && dataPoints.length > 0) {
+      const total = dataPoints.reduce((a, b) => a + b, 0);
+      const avg = total / dataPoints.length;
+      const max = Math.max(...dataPoints);
+      const min = Math.min(...dataPoints);
+      const viewLabels = { dia: 'Día', semana: 'Semana', mes: 'Mes' };
+      summaryEl.innerHTML = `
+        <div class="tracking-stat">
+          <span class="tracking-stat-label">Promedio</span>
+          <span class="tracking-stat-value">€${avg.toFixed(2)}</span>
+        </div>
+        <div class="tracking-stat">
+          <span class="tracking-stat-label">Máximo</span>
+          <span class="tracking-stat-value">€${max.toFixed(2)}</span>
+        </div>
+        <div class="tracking-stat">
+          <span class="tracking-stat-label">Mínimo</span>
+          <span class="tracking-stat-value">€${min.toFixed(2)}</span>
+        </div>
+        <div class="tracking-stat">
+          <span class="tracking-stat-label">Registros</span>
+          <span class="tracking-stat-value">${dataPoints.length}</span>
+        </div>`;
+    } else if (summaryEl) {
+      summaryEl.innerHTML = '';
+    }
+
+    if (dataPoints.length === 0) {
+      if (trackingChartInstance) { trackingChartInstance.destroy(); trackingChartInstance = null; }
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = 'rgba(100,116,139,0.6)';
+      ctx.font = '14px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('Sin datos todavía para esta vista.', canvas.width / 2, canvas.height / 2);
+      return;
+    }
+
+    const gradient = ctx.createLinearGradient(0, 0, 0, canvas.parentElement.clientHeight || 300);
+    gradient.addColorStop(0, gradientTop);
+    gradient.addColorStop(1, gradientBottom);
+
+    const chartData = {
+      labels,
+      datasets: [{
+        label: labelTitle,
+        data: dataPoints,
+        fill: true,
+        backgroundColor: gradient,
+        borderColor: accentColor,
+        borderWidth: 2.5,
+        pointBackgroundColor: accentColor,
+        pointBorderColor: 'rgba(10, 14, 26, 1)',
+        pointBorderWidth: 2,
+        pointRadius: 4,
+        pointHoverRadius: 7,
+        pointHoverBackgroundColor: '#fff',
+        pointHoverBorderColor: accentColor,
+        pointHoverBorderWidth: 3,
+        tension: 0.4,
+      }]
+    };
+
+    const chartOptions = {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: 'rgba(17, 24, 39, 0.95)',
+          titleColor: '#f1f5f9',
+          bodyColor: '#94a3b8',
+          borderColor: 'rgba(255,255,255,0.1)',
+          borderWidth: 1,
+          cornerRadius: 8,
+          padding: 12,
+          titleFont: { family: 'Inter', weight: '600', size: 13 },
+          bodyFont: { family: 'Inter', size: 12 },
+          displayColors: false,
+          callbacks: {
+            title: (items) => items[0].label,
+            label: (item) => `  €${item.raw.toFixed(2)}`
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { color: 'rgba(255,255,255,0.04)', drawBorder: false },
+          ticks: {
+            color: 'rgba(100,116,139,0.8)',
+            font: { family: 'Inter', size: 11 },
+            maxRotation: 45,
+            autoSkip: true,
+            maxTicksLimit: 10,
+          },
+          border: { display: false }
+        },
+        y: {
+          grid: { color: 'rgba(255,255,255,0.04)', drawBorder: false },
+          ticks: {
+            color: 'rgba(100,116,139,0.8)',
+            font: { family: 'Inter', size: 11 },
+            callback: (v) => '€' + v.toFixed(0),
+          },
+          border: { display: false },
+          beginAtZero: true,
+        }
+      },
+      animation: {
+        duration: 700,
+        easing: 'easeOutQuart',
+      }
+    };
+
+    if (trackingChartInstance) {
+      trackingChartInstance.destroy();
+      trackingChartInstance = null;
+    }
+
+    trackingChartInstance = new Chart(ctx, {
+      type: 'line',
+      data: chartData,
+      options: chartOptions,
+    });
   }
 
   function showAuthMessage(msg, isError = false) {
@@ -564,6 +727,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     resultsSection.classList.add('hidden');
     prefSection.classList.remove('hidden');
     authSection.classList.remove('hidden');
+    if (trackingChartInstance) { trackingChartInstance.destroy(); trackingChartInstance = null; }
     if (trackingContent) trackingContent.innerHTML = '';
     loginForm.reset();
     registerForm.reset();
