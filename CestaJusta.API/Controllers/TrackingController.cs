@@ -142,7 +142,9 @@ namespace CestaJusta.API.Controllers
         private static TrackingResumenResponse BuildResumen(List<TrackingRegistro> registros)
         {
             var diarios = registros
-                .Select(r => new TrackingPoint(r.Fecha, r.GastoDiario))
+                .GroupBy(r => r.Fecha.Date)
+                .OrderBy(g => g.Key)
+                .Select(g => new TrackingPoint(g.Key, g.Last().GastoDiario))
                 .ToList();
 
             var semanales = registros

@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("CestaJusta.API")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+bfca73248b5cd02ea830b2e29e7c1b637d775bb5")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+2cbe1469b14d67d8a767b480fcd471413ee97ccd")]
 [assembly: System.Reflection.AssemblyProductAttribute("CestaJusta.API")]
 [assembly: System.Reflection.AssemblyTitleAttribute("CestaJusta.API")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
