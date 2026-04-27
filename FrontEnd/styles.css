@@ -321,6 +321,12 @@ h3 {
 .btn-google:active {
   transform: translateY(0);
 }
+.google-signin-slot {
+  display: flex;
+  justify-content: center;
+  min-height: 44px;
+  margin-top: 0.9rem;
+}
 .btn-google .google-icon {
   flex-shrink: 0;
   position: relative;

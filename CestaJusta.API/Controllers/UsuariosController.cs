@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Google.Apis.Auth;
 using CestaJusta.API.Data;
 using CestaJusta.API.Models;
 using CestaJusta.API.Security;
@@ -11,10 +12,12 @@ namespace CestaJusta.API.Controllers
     public class UsuariosController : ControllerBase
     {
         private readonly AppDbContext _context;
+        private readonly IConfiguration _configuration;
 
-        public UsuariosController(AppDbContext context)
+        public UsuariosController(AppDbContext context, IConfiguration configuration)
         {
             _context = context;
+            _configuration = configuration;
         }
 
         [HttpPost("registro")]
@@ -78,7 +81,33 @@ namespace CestaJusta.API.Controllers
         [HttpPost("google")]
         public async Task<ActionResult<UsuarioResponse>> Google([FromBody] GoogleLoginRequest request)
         {
-            var email = request.Email.Trim().ToLowerInvariant();
+            var clientId = ConfigController.GetGoogleClientId(_configuration);
+            if (string.IsNullOrWhiteSpace(clientId))
+            {
+                return BadRequest(new { message = "Google Sign-In no está configurado en la API." });
+            }
+
+            GoogleJsonWebSignature.Payload payload;
+            try
+            {
+                payload = await GoogleJsonWebSignature.ValidateAsync(
+                    request.Credential,
+                    new GoogleJsonWebSignature.ValidationSettings
+                    {
+                        Audience = new[] { clientId }
+                    });
+            }
+            catch
+            {
+                return Unauthorized(new { message = "No se pudo validar la sesión de Google." });
+            }
+
+            if (payload.EmailVerified != true)
+            {
+                return Unauthorized(new { message = "Google no ha verificado este correo." });
+            }
+
+            var email = payload.Email.Trim().ToLowerInvariant();
             if (string.IsNullOrWhiteSpace(email)) return BadRequest(new { message = "Email obligatorio." });
 
             var usuario = await _context.Usuarios.FirstOrDefaultAsync(u => u.Email == email);
@@ -95,9 +124,9 @@ namespace CestaJusta.API.Controllers
                 usuario = new Usuario
                 {
                     Email = email,
-                    Nombre = string.IsNullOrWhiteSpace(request.Nombre) ? "Usuario" : request.Nombre.Trim(),
-                    Apellido1 = request.Apellido1?.Trim() ?? string.Empty,
-                    Apellido2 = request.Apellido2?.Trim(),
+                    Nombre = string.IsNullOrWhiteSpace(payload.GivenName) ? payload.Name?.Trim() ?? "Usuario" : payload.GivenName.Trim(),
+                    Apellido1 = payload.FamilyName?.Trim() ?? string.Empty,
+                    Apellido2 = null,
                     NombreUsuario = username,
                     ContrasenaHash = PasswordHasher.Hash(Guid.NewGuid().ToString("N")),
                     FechaCreacion = DateTime.UtcNow,
@@ -144,7 +173,7 @@ namespace CestaJusta.API.Controllers
 
     public record LoginRequest(string UsuarioOEmail, string Contrasena);
 
-    public record GoogleLoginRequest(string Email, string? Nombre, string? Apellido1, string? Apellido2);
+    public record GoogleLoginRequest(string Credential);
 
     public record UsuarioResponse(
         string Email,

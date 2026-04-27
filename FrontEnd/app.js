@@ -8,12 +8,25 @@ const DAYS = ['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Doming
 const DAY_EMOJIS = ['','','','','','',''];
 const MEAL_ICONS = { desayuno:'', almuerzo:'', cena:'' };
 const API_BASE_URL = 'http://localhost:5088/api';
-const GOOGLE_CLIENT_ID = window.GOOGLE_CLIENT_ID || '';
+let googleClientId = window.GOOGLE_CLIENT_ID || '';
 
 async function fetchFromAPI(endpoint) {
   const response = await fetch(`${API_BASE_URL}${endpoint}`);
   if (!response.ok) throw new Error(`API error ${response.status} on ${endpoint}`);
   return response.json();
+}
+
+async function loadGoogleClientId() {
+  if (googleClientId) return googleClientId;
+
+  try {
+    const config = await fetchFromAPI('/config/google');
+    googleClientId = config.clientId || config.ClientId || '';
+  } catch (error) {
+    console.warn('No se pudo cargar la configuración de Google:', error);
+  }
+
+  return googleClientId;
 }
 
 function getRecipeName(recipe, type = '') {
@@ -612,29 +625,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
-  function decodeJwtPayload(token) {
-    const base64Url = token.split('.')[1];
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    const jsonPayload = decodeURIComponent(
-      atob(base64).split('').map(c =>
-        '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)
-      ).join('')
-    );
-    return JSON.parse(jsonPayload);
-  }
-
   function handleGoogleSignIn(response) {
-    const payload = decodeJwtPayload(response.credential);
-    const googleEmail = payload.email;
-    const googleName = payload.given_name || payload.name || 'Usuario';
-    const googleLastName = payload.family_name || '';
-    const googlePicture = payload.picture || '';
+    if (!response?.credential) {
+      showAuthMessage('Google no devolvió credenciales. Inténtalo de nuevo.', true);
+      return;
+    }
 
     postToAPI('/usuarios/google', {
-      email: googleEmail,
-      nombre: googleName,
-      apellido1: googleLastName,
-      apellido2: ''
+      credential: response.credential
     }).then(user => {
       currentUser = user;
       updateUserMenu(currentUser);
@@ -644,102 +642,43 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   let googleInitialized = false;
-  function initGoogleSignIn() {
+  async function initGoogleSignIn() {
     if (googleInitialized) return;
-    if (!GOOGLE_CLIENT_ID) return;
+    const clientId = await loadGoogleClientId();
+    if (!clientId) {
+      showAuthMessage('Google Sign-In no está configurado. Define Authentication:Google:ClientId o GOOGLE_CLIENT_ID en la API.', true);
+      return;
+    }
     if (typeof google === 'undefined' || !google.accounts) return;
 
     google.accounts.id.initialize({
-      client_id: GOOGLE_CLIENT_ID,
+      client_id: clientId,
       callback: handleGoogleSignIn,
       auto_select: false,
       use_fedcm_for_prompt: false,
     });
 
-    const hiddenGoogleDiv = document.createElement('div');
-    hiddenGoogleDiv.id = 'google-hidden-btn';
-    hiddenGoogleDiv.style.position = 'fixed';
-    hiddenGoogleDiv.style.top = '-9999px';
-    hiddenGoogleDiv.style.left = '-9999px';
-    hiddenGoogleDiv.style.opacity = '0.01';
-    hiddenGoogleDiv.style.pointerEvents = 'none';
-    document.body.appendChild(hiddenGoogleDiv);
-
-    google.accounts.id.renderButton(hiddenGoogleDiv, {
-      type: 'standard',
-      theme: 'filled_black',
-      size: 'large',
-      width: 300,
-    });
+    renderGoogleButton('btn-google-login');
+    renderGoogleButton('btn-google-register');
 
     googleInitialized = true;
   }
 
-  function triggerGoogleSignIn() {
-    if (!GOOGLE_CLIENT_ID) {
-      showAuthMessage('Google Sign-In no está configurado todavía.', true);
-      return;
-    }
+  function renderGoogleButton(elementId) {
+    const container = $(elementId);
+    if (!container || container.dataset.googleRendered === 'true') return;
 
-    if (typeof google === 'undefined' || !google.accounts) {
-      showAuthMessage('Google Sign-In no se ha cargado. Recarga la página.', true);
-      return;
-    }
-
-    initGoogleSignIn();
-
-    const hiddenDiv = document.getElementById('google-hidden-btn');
-    if (hiddenDiv) {
-      const googleIframe = hiddenDiv.querySelector('iframe');
-      if (googleIframe) {
-        hiddenDiv.style.position = 'fixed';
-        hiddenDiv.style.top = '50%';
-        hiddenDiv.style.left = '50%';
-        hiddenDiv.style.transform = 'translate(-50%, -50%)';
-        hiddenDiv.style.opacity = '1';
-        hiddenDiv.style.pointerEvents = 'auto';
-        hiddenDiv.style.zIndex = '10000';
-        hiddenDiv.style.background = 'var(--bg-card-solid)';
-        hiddenDiv.style.padding = '2rem';
-        hiddenDiv.style.borderRadius = '1rem';
-        hiddenDiv.style.border = '1px solid var(--glass-border)';
-        hiddenDiv.style.boxShadow = '0 20px 60px rgba(0,0,0,0.5)';
-
-        const overlay = document.createElement('div');
-        overlay.id = 'google-overlay';
-        overlay.style.position = 'fixed';
-        overlay.style.inset = '0';
-        overlay.style.background = 'rgba(0,0,0,0.6)';
-        overlay.style.zIndex = '9999';
-        document.body.appendChild(overlay);
-
-        overlay.addEventListener('click', () => {
-          hiddenDiv.style.position = 'fixed';
-          hiddenDiv.style.top = '-9999px';
-          hiddenDiv.style.left = '-9999px';
-          hiddenDiv.style.opacity = '0.01';
-          hiddenDiv.style.pointerEvents = 'none';
-          hiddenDiv.style.zIndex = '';
-          hiddenDiv.style.background = '';
-          hiddenDiv.style.padding = '';
-          hiddenDiv.style.borderRadius = '';
-          hiddenDiv.style.border = '';
-          hiddenDiv.style.boxShadow = '';
-          hiddenDiv.style.transform = '';
-          overlay.remove();
-        });
-
-        return;
-      }
-    }
-
-    showAuthMessage('Error al cargar Google Sign-In. Recarga la página.', true);
+    container.innerHTML = '';
+    google.accounts.id.renderButton(container, {
+      type: 'standard',
+      theme: 'outline',
+      size: 'large',
+      text: elementId === 'btn-google-register' ? 'signup_with' : 'signin_with',
+      shape: 'rectangular',
+      width: Math.min(container.clientWidth || 320, 400),
+    });
+    container.dataset.googleRendered = 'true';
   }
-
-  const btnGoogleLogin = $('btn-google-login');
-  const btnGoogleRegister = $('btn-google-register');
-  if (btnGoogleLogin) btnGoogleLogin.addEventListener('click', triggerGoogleSignIn);
-  if (btnGoogleRegister) btnGoogleRegister.addEventListener('click', triggerGoogleSignIn);
 
   function waitForGoogleAndInit() {
     if (typeof google !== 'undefined' && google.accounts) {
